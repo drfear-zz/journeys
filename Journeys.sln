@@ -1,9 +1,9 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.28307.489
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.32112.339
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "modified paths for citizens in vehicles", "modified paths for citizens in vehicles.csproj", "{DB57FBBE-7A25-43D9-9D44-F41C809D4EDB}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Journeys", "Journeys.csproj", "{DB57FBBE-7A25-43D9-9D44-F41C809D4EDB}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -19,6 +19,8 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <CodeAnalysisRuleSet>
+    </CodeAnalysisRuleSet>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -29,7 +31,7 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <PropertyGroup>
-    <RootNamespace>modified_paths_for_citizens_in_vehicles</RootNamespace>
+    <RootNamespace>Journeys</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Assembly-CSharp">
