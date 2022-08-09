@@ -26,6 +26,7 @@ namespace Journeys
         public Dictionary<ushort, Journey> m_journeys;
         public int m_journeysCount;
         public int m_selectedJourneysCount;
+        public int m_FromToCode;             // 0 for show all, 1 for show From, 2 for show To
         private HashSet<InstanceID> m_targets;
         private InstanceID m_lastInstance;
         private bool m_journeysVisible;
@@ -137,6 +138,7 @@ namespace Journeys
             m_journeys = new Dictionary<ushort, Journey>();
             m_journeysCount = 0;
             m_selectedJourneysCount = 0;
+            m_FromToCode = 0;
             m_maxJourneysCount = 500;                       // maybe more or less would be better.  PV has (hardcoded) 100 but that is def not enough for eg a full train.
             m_targets = new HashSet<InstanceID>();
             m_journeysVisible = true;
@@ -492,6 +494,16 @@ namespace Journeys
             }
         }
 
+        // in a full implementation this would work from the Selection rather than from All
+        public void FromToHere()
+        {
+            doneMeshes = false;
+            theStepManager.FromToHere(m_FromToCode, SelectedSegment);
+            theStepManager.CalculateMeshes();
+            doneMeshes |= true;
+        }
+
+
         // m_journeysVisible is this is the fundamental controller of whether SimulationStep happens or not (as well as the obvious meaning)
         // I thought there might be calls to PathsVisible from other managers, but there do not seem to be.  Still, I left it here for now.
         public bool PathsVisible
@@ -571,257 +583,5 @@ namespace Journeys
 
     }
 }
-
-  //  public static void FillPathSegment(
-  //Bezier3 bezier,
-  //RenderGroup.MeshData meshData,
-  //Bezier3[] curves,
-  //int segmentIndex,
-  //int curveIndex,
-  //float startOffset,
-  //float endOffset,
-  //float halfWidth,
-  //float halfHeight,
-  //bool ignoreY)                                                  // this is set according to m_requireSurfaceLine (which I always have false).  Therefore in my cases I do not ignoreY.
-  //  {
-  //      if (curves != null)
-  //          curves[curveIndex] = bezier;
-  //      if (ignoreY)
-  //      {
-  //          bezier.a.y = 0.0f;
-  //          bezier.b.y = 0.0f;
-  //          bezier.c.y = 0.0f;
-  //          bezier.d.y = 0.0f;
-  //      }
-  //      int index1 = segmentIndex * 8;
-  //      int num1 = segmentIndex * 30;
-  //      float b1 = Mathf.Abs(bezier.a.y - bezier.d.y) * 0.5f;
-  //      Vector3 vector3_1 = new Vector3(0.0f, Mathf.Max(Mathf.Max(0.0f, bezier.b.y - bezier.a.y) + halfHeight, b1), 0.0f);
-  //      Vector3 vector3_2 = new Vector3(0.0f, Mathf.Min(Mathf.Min(0.0f, bezier.b.y - bezier.a.y) - halfHeight, -b1), 0.0f);
-  //      Vector3 vector3_3 = new Vector3(0.0f, Mathf.Max(Mathf.Max(0.0f, bezier.c.y - bezier.d.y) + halfHeight, b1), 0.0f);
-  //      Vector3 vector3_4 = new Vector3(0.0f, Mathf.Min(Mathf.Min(0.0f, bezier.c.y - bezier.d.y) - halfHeight, -b1), 0.0f);
-  //      Vector3 vector3_5 = new Vector3(startOffset, endOffset, -halfWidth);
-  //      Vector4 vector4 = new Vector4(bezier.a.x, bezier.b.x, bezier.c.x, bezier.d.x);
-  //      Vector2 vector2_1 = new Vector2(bezier.a.z, bezier.b.z);
-  //      Vector2 vector2_2 = new Vector2(bezier.c.z, bezier.d.z);
-  //      Vector3 normalized1 = (bezier.d - bezier.a).normalized;
-  //      Vector3 normalized2 = Vector3.Cross(Vector3.up, normalized1).normalized;
-  //      float a = Vector3.Dot(normalized2, bezier.b - bezier.a);
-  //      float b2 = Vector3.Dot(normalized2, bezier.c - bezier.a);
-  //      float num2 = Mathf.Min(0.0f, Mathf.Min(a, b2)) - halfWidth;
-  //      float num3 = Mathf.Max(0.0f, Mathf.Max(a, b2)) + halfWidth;
-  //      Vector3 vector3_6 = bezier.a + normalized2 * num2 - normalized1 * 4f;
-  //      Vector3 vector3_7 = bezier.a + normalized2 * num3 - normalized1 * 4f;
-  //      Vector3 vector3_8 = bezier.d + normalized2 * num2 + normalized1 * 4f;
-  //      Vector3 vector3_9 = bezier.d + normalized2 * num3 + normalized1 * 4f;
-  //      meshData.m_vertices[index1] = vector3_6 + vector3_2;
-  //      meshData.m_colors[index1] = TransportLine.CalculateVertexColor(meshData.m_vertices[index1], bezier);
-  //      meshData.m_normals[index1] = vector3_5;
-  //      meshData.m_tangents[index1] = vector4;
-  //      meshData.m_uvs[index1] = vector2_1;
-  //      meshData.m_uvs2[index1] = vector2_2;
-  //      int index2 = index1 + 1;
-  //      meshData.m_vertices[index2] = vector3_6 + vector3_1;
-  //      meshData.m_colors[index2] = TransportLine.CalculateVertexColor(meshData.m_vertices[index2], bezier);
-  //      meshData.m_normals[index2] = vector3_5;
-  //      meshData.m_tangents[index2] = vector4;
-  //      meshData.m_uvs[index2] = vector2_1;
-  //      meshData.m_uvs2[index2] = vector2_2;
-  //      int index3 = index2 + 1;
-  //      meshData.m_vertices[index3] = vector3_7 + vector3_2;
-  //      meshData.m_colors[index3] = TransportLine.CalculateVertexColor(meshData.m_vertices[index3], bezier);
-  //      meshData.m_normals[index3] = vector3_5;
-  //      meshData.m_tangents[index3] = vector4;
-  //      meshData.m_uvs[index3] = vector2_1;
-  //      meshData.m_uvs2[index3] = vector2_2;
-  //      int index4 = index3 + 1;
-  //      meshData.m_vertices[index4] = vector3_7 + vector3_1;
-  //      meshData.m_colors[index4] = TransportLine.CalculateVertexColor(meshData.m_vertices[index4], bezier);
-  //      meshData.m_normals[index4] = vector3_5;
-  //      meshData.m_tangents[index4] = vector4;
-  //      meshData.m_uvs[index4] = vector2_1;
-  //      meshData.m_uvs2[index4] = vector2_2;
-  //      int index5 = index4 + 1;
-  //      meshData.m_vertices[index5] = vector3_8 + vector3_4;
-  //      meshData.m_colors[index5] = TransportLine.CalculateVertexColor(meshData.m_vertices[index5], bezier);
-  //      meshData.m_normals[index5] = vector3_5;
-  //      meshData.m_tangents[index5] = vector4;
-  //      meshData.m_uvs[index5] = vector2_1;
-  //      meshData.m_uvs2[index5] = vector2_2;
-  //      int index6 = index5 + 1;
-  //      meshData.m_vertices[index6] = vector3_8 + vector3_3;
-  //      meshData.m_colors[index6] = TransportLine.CalculateVertexColor(meshData.m_vertices[index6], bezier);
-  //      meshData.m_normals[index6] = vector3_5;
-  //      meshData.m_tangents[index6] = vector4;
-  //      meshData.m_uvs[index6] = vector2_1;
-  //      meshData.m_uvs2[index6] = vector2_2;
-  //      int index7 = index6 + 1;
-  //      meshData.m_vertices[index7] = vector3_9 + vector3_4;
-  //      meshData.m_colors[index7] = TransportLine.CalculateVertexColor(meshData.m_vertices[index7], bezier);
-  //      meshData.m_normals[index7] = vector3_5;
-  //      meshData.m_tangents[index7] = vector4;
-  //      meshData.m_uvs[index7] = vector2_1;
-  //      meshData.m_uvs2[index7] = vector2_2;
-  //      int index8 = index7 + 1;
-  //      meshData.m_vertices[index8] = vector3_9 + vector3_3;
-  //      meshData.m_colors[index8] = TransportLine.CalculateVertexColor(meshData.m_vertices[index8], bezier);
-  //      meshData.m_normals[index8] = vector3_5;
-  //      meshData.m_tangents[index8] = vector4;
-  //      meshData.m_uvs[index8] = vector2_1;
-  //      meshData.m_uvs2[index8] = vector2_2;
-  //      int num4 = index8 + 1;
-  //      int[] triangles1 = meshData.m_triangles;
-  //      int index9 = num1;
-  //      int num5 = index9 + 1;
-  //      int num6 = num4 - 8;
-  //      triangles1[index9] = num6;
-  //      int[] triangles2 = meshData.m_triangles;
-  //      int index10 = num5;
-  //      int num7 = index10 + 1;
-  //      int num8 = num4 - 7;
-  //      triangles2[index10] = num8;
-  //      int[] triangles3 = meshData.m_triangles;
-  //      int index11 = num7;
-  //      int num9 = index11 + 1;
-  //      int num10 = num4 - 6;
-  //      triangles3[index11] = num10;
-  //      int[] triangles4 = meshData.m_triangles;
-  //      int index12 = num9;
-  //      int num11 = index12 + 1;
-  //      int num12 = num4 - 6;
-  //      triangles4[index12] = num12;
-  //      int[] triangles5 = meshData.m_triangles;
-  //      int index13 = num11;
-  //      int num13 = index13 + 1;
-  //      int num14 = num4 - 7;
-  //      triangles5[index13] = num14;
-  //      int[] triangles6 = meshData.m_triangles;
-  //      int index14 = num13;
-  //      int num15 = index14 + 1;
-  //      int num16 = num4 - 5;
-  //      triangles6[index14] = num16;
-  //      int[] triangles7 = meshData.m_triangles;
-  //      int index15 = num15;
-  //      int num17 = index15 + 1;
-  //      int num18 = num4 - 6;
-  //      triangles7[index15] = num18;
-  //      int[] triangles8 = meshData.m_triangles;
-  //      int index16 = num17;
-  //      int num19 = index16 + 1;
-  //      int num20 = num4 - 5;
-  //      triangles8[index16] = num20;
-  //      int[] triangles9 = meshData.m_triangles;
-  //      int index17 = num19;
-  //      int num21 = index17 + 1;
-  //      int num22 = num4 - 2;
-  //      triangles9[index17] = num22;
-  //      int[] triangles10 = meshData.m_triangles;
-  //      int index18 = num21;
-  //      int num23 = index18 + 1;
-  //      int num24 = num4 - 2;
-  //      triangles10[index18] = num24;
-  //      int[] triangles11 = meshData.m_triangles;
-  //      int index19 = num23;
-  //      int num25 = index19 + 1;
-  //      int num26 = num4 - 5;
-  //      triangles11[index19] = num26;
-  //      int[] triangles12 = meshData.m_triangles;
-  //      int index20 = num25;
-  //      int num27 = index20 + 1;
-  //      int num28 = num4 - 1;
-  //      triangles12[index20] = num28;
-  //      int[] triangles13 = meshData.m_triangles;
-  //      int index21 = num27;
-  //      int num29 = index21 + 1;
-  //      int num30 = num4 - 7;
-  //      triangles13[index21] = num30;
-  //      int[] triangles14 = meshData.m_triangles;
-  //      int index22 = num29;
-  //      int num31 = index22 + 1;
-  //      int num32 = num4 - 3;
-  //      triangles14[index22] = num32;
-  //      int[] triangles15 = meshData.m_triangles;
-  //      int index23 = num31;
-  //      int num33 = index23 + 1;
-  //      int num34 = num4 - 5;
-  //      triangles15[index23] = num34;
-  //      int[] triangles16 = meshData.m_triangles;
-  //      int index24 = num33;
-  //      int num35 = index24 + 1;
-  //      int num36 = num4 - 5;
-  //      triangles16[index24] = num36;
-  //      int[] triangles17 = meshData.m_triangles;
-  //      int index25 = num35;
-  //      int num37 = index25 + 1;
-  //      int num38 = num4 - 3;
-  //      triangles17[index25] = num38;
-  //      int[] triangles18 = meshData.m_triangles;
-  //      int index26 = num37;
-  //      int num39 = index26 + 1;
-  //      int num40 = num4 - 1;
-  //      triangles18[index26] = num40;
-  //      int[] triangles19 = meshData.m_triangles;
-  //      int index27 = num39;
-  //      int num41 = index27 + 1;
-  //      int num42 = num4 - 8;
-  //      triangles19[index27] = num42;
-  //      int[] triangles20 = meshData.m_triangles;
-  //      int index28 = num41;
-  //      int num43 = index28 + 1;
-  //      int num44 = num4 - 4;
-  //      triangles20[index28] = num44;
-  //      int[] triangles21 = meshData.m_triangles;
-  //      int index29 = num43;
-  //      int num45 = index29 + 1;
-  //      int num46 = num4 - 7;
-  //      triangles21[index29] = num46;
-  //      int[] triangles22 = meshData.m_triangles;
-  //      int index30 = num45;
-  //      int num47 = index30 + 1;
-  //      int num48 = num4 - 7;
-  //      triangles22[index30] = num48;
-  //      int[] triangles23 = meshData.m_triangles;
-  //      int index31 = num47;
-  //      int num49 = index31 + 1;
-  //      int num50 = num4 - 4;
-  //      triangles23[index31] = num50;
-  //      int[] triangles24 = meshData.m_triangles;
-  //      int index32 = num49;
-  //      int num51 = index32 + 1;
-  //      int num52 = num4 - 3;
-  //      triangles24[index32] = num52;
-  //      int[] triangles25 = meshData.m_triangles;
-  //      int index33 = num51;
-  //      int num53 = index33 + 1;
-  //      int num54 = num4 - 2;
-  //      triangles25[index33] = num54;
-  //      int[] triangles26 = meshData.m_triangles;
-  //      int index34 = num53;
-  //      int num55 = index34 + 1;
-  //      int num56 = num4 - 1;
-  //      triangles26[index34] = num56;
-  //      int[] triangles27 = meshData.m_triangles;
-  //      int index35 = num55;
-  //      int num57 = index35 + 1;
-  //      int num58 = num4 - 4;
-  //      triangles27[index35] = num58;
-  //      int[] triangles28 = meshData.m_triangles;
-  //      int index36 = num57;
-  //      int num59 = index36 + 1;
-  //      int num60 = num4 - 4;
-  //      triangles28[index36] = num60;
-  //      int[] triangles29 = meshData.m_triangles;
-  //      int index37 = num59;
-  //      int num61 = index37 + 1;
-  //      int num62 = num4 - 1;
-  //      triangles29[index37] = num62;
-  //      int[] triangles30 = meshData.m_triangles;
-  //      int index38 = num61;
-  //      int num63 = index38 + 1;
-  //      int num64 = num4 - 3;
-  //      triangles30[index38] = num64;
-  //  }
-
-
 
 

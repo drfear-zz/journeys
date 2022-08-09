@@ -31,7 +31,7 @@ namespace Journeys
                     theJV.ChangeHeatMap(!theJV.GetHeatMap);
                     Debug.Log("JV: heatmap changed to " + theJV.GetHeatMap);
                 }
-                if (Input.GetKeyDown(KeyCode.M))
+                if (Input.GetKeyDown(KeyCode.Comma))
                 {
                     theJV.ChangeHeatOnlyAsSelected(!theJV.GetHeatOnlyAsSelected);
                     Debug.Log("JV: only-as-selected changed to " + theJV.GetHeatOnlyAsSelected);
@@ -44,7 +44,7 @@ namespace Journeys
                     theJV.ChangeDiscreteHeats(newvalue);
                     Debug.Log("JV: discrete categories changed to " + theJV.GetDiscreteHeats);
                 }
-                if (Input.GetKeyDown(KeyCode.L))
+                if (Input.GetKeyDown(KeyCode.Period))
                 {
                     if (theJV.SelectedSegment != 0)
                     {
@@ -54,6 +54,13 @@ namespace Journeys
                         theJV.SubSelectByLane(theJV.SelectedSegment, theJV.CurrentLane);
                         Debug.Log("JV: lane selection, currently lane " + theJV.CurrentLane);
                     }
+                }
+                if (Input.GetKeyDown(KeyCode.L))
+                {
+                    theJV.m_FromToCode = theJV.m_FromToCode + 1;
+                    if (theJV.m_FromToCode == 3)
+                        theJV.m_FromToCode = 0;
+                    theJV.FromToHere();
                 }
             }
             if (FlagShowJourneys && flagChanged)

@@ -188,6 +188,64 @@ namespace Journeys
             }
         }
 
+        public void FromToHere(int ftflag, ushort targetSegment)
+        {
+            Debug.Log("call FromToHere with ftflag " + ftflag + " and target segment " + targetSegment);
+            JourneyVisualizer theJV = Singleton<JourneyVisualizer>.instance;
+            if (ftflag == 0)
+            {
+                foreach (Journey journey in theJV.m_journeys.Values)
+                {
+                    ushort cim = journey.m_id;
+                    foreach (ushort stepIdx in journey.m_steps)
+                        m_StepIndex[stepIdx].ShowCitizen(cim);
+                }
+            }
+            else
+            {
+                if (ftflag == 1)
+                {
+                    foreach (Journey journey in theJV.m_journeys.Values)
+                    {
+                        ushort cim = journey.m_id;
+                        bool after = false;
+                        foreach (ushort stepIdx in journey.m_steps)
+                        {
+                            bool target = m_StepIndex[stepIdx].StartStep.Segment == targetSegment;
+                            if (after || target)
+                            {
+                                m_StepIndex[stepIdx].ShowCitizen(cim);
+                                if (target)
+                                    after = true;
+                            }
+                            else
+                                m_StepIndex[stepIdx].HideCitizen(cim);
+                        }
+                    }
+                }
+                else
+                {
+                    foreach (Journey journey in theJV.m_journeys.Values)
+                    {
+                        ushort cim = journey.m_id;
+                        bool before = true;
+                        foreach (ushort stepIdx in journey.m_steps)
+                        {
+                            bool target = m_StepIndex[stepIdx].EndStep.Segment == targetSegment;
+                            if (before || target)
+                            {
+                                m_StepIndex[stepIdx].ShowCitizen(cim);
+                                if (target)
+                                    before = false;
+                            }
+                            else
+                                m_StepIndex[stepIdx].HideCitizen(cim);
+                        }
+                    }
+                }
+            }
+        }
+
         public void DestroyAll()
         {
             lock (mgrLock)
