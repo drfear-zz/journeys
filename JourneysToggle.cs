@@ -23,6 +23,39 @@ namespace Journeys
                 FlagShowJourneys = !FlagShowJourneys;
                 flagChanged = true;
             }
+            if (FlagShowJourneys)
+            {
+                JourneyVisualizer theJV = Singleton<JourneyVisualizer>.instance;
+                if (Input.GetKeyDown(KeyCode.K))
+                {
+                    theJV.ChangeHeatMap(!theJV.GetHeatMap);
+                    Debug.Log("JV: heatmap changed to " + theJV.GetHeatMap);
+                }
+                if (Input.GetKeyDown(KeyCode.M))
+                {
+                    theJV.ChangeHeatOnlyAsSelected(!theJV.GetHeatOnlyAsSelected);
+                    Debug.Log("JV: only-as-selected changed to " + theJV.GetHeatOnlyAsSelected);
+                }
+                if (Input.GetKeyDown(KeyCode.N))
+                {
+                    int newvalue = theJV.GetDiscreteHeats;
+                    if (++newvalue > 8)
+                        newvalue = 0;
+                    theJV.ChangeDiscreteHeats(newvalue);
+                    Debug.Log("JV: discrete categories changed to " + theJV.GetDiscreteHeats);
+                }
+                if (Input.GetKeyDown(KeyCode.L))
+                {
+                    if (theJV.SelectedSegment != 0)
+                    {
+                        int numlanes = Singleton<NetManager>.instance.m_segments.m_buffer[theJV.SelectedSegment].Info.m_lanes.Length;
+                        if (++theJV.CurrentLane == numlanes)
+                            theJV.CurrentLane = 0;
+                        theJV.SubSelectByLane(theJV.SelectedSegment, theJV.CurrentLane);
+                        Debug.Log("JV: lane selection, currently lane " + theJV.CurrentLane);
+                    }
+                }
+            }
             if (FlagShowJourneys && flagChanged)
             {
                 //Debug.Log("toggled to show journeys");
@@ -34,9 +67,9 @@ namespace Journeys
                     thePV.DestroyPaths();
                 }
                 Redirector<JourneyDetourer>.Deploy();
-                //Debug.Log("JV redirector deployed");
+                Debug.Log("JV redirector deployed");
                 InfoManager.instance.SetCurrentMode(InfoManager.InfoMode.TrafficRoutes, InfoManager.SubInfoMode.Default);
-                //UIView.library.Hide("TrafficRoutesInfoViewPanel");
+                UIView.library.Hide("TrafficRoutesInfoViewPanel");
                 //Singleton<JourneysPanel>.instance.Show();
             }
             else if (flagChanged && Redirector<JourneyDetourer>.IsDeployed())
@@ -47,7 +80,7 @@ namespace Journeys
                 Debug.Log("JV redirect of PV reverted");
                 if (InfoManager.instance.CurrentMode == InfoManager.InfoMode.TrafficRoutes)
                 {
-                    //UIView.library.Show("TrafficRoutesInfoViewPanel");
+                    UIView.library.Show("TrafficRoutesInfoViewPanel");
                     Singleton<NetManager>.instance.PathVisualizer.PathsVisible = true;
                 }
             }

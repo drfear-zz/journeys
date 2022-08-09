@@ -1,22 +1,7 @@
 ﻿using ColossalFramework;
 using System.Collections.Generic;
 using UnityEngine;
-using System.Linq;
 using System;
-using ColossalFramework;
-using ColossalFramework.Math;
-using ColossalFramework.PlatformServices;
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using ColossalFramework.UI;
-using UnityEngine;
-using Journeys.RedirectionFramework;
-using Journeys.RedirectionFramework.Attributes;
-using Journeys.RedirectionFramework.Extensions;
-using System.Linq;
-using System.Runtime.InteropServices;
-using System.Collections;
 
 namespace Journeys
 {
@@ -51,10 +36,7 @@ namespace Journeys
             {
                 Debug.Log("JV: entered StepMgr.WipeSlate");
                 foreach (JourneyStep jStep in m_StepIndex.Values)
-                {
-                    jStep.KillLineMeshes();
-                    jStep.KillRouteMeshes();
-                }
+                    jStep.KillMeshes();
                 m_StepIndex.Clear();
                 m_HashToIdx.Clear();
                 m_indexStack.Clear();
@@ -115,15 +97,30 @@ namespace Journeys
         {
             lock (mgrLock)
             {
-                Debug.Log("JV: within lock in CalculateMeshes, num steps is " + m_StepIndex.Count);
+                //Debug.Log("JV: within lock in CalculateMeshes, num steps is " + m_StepIndex.Count);
                 foreach (JourneyStep jStep in m_StepIndex.Values)
                 {
                     if (jStep == null)
-                        Debug.Log("JV Error: null jStep with CalculateMeshes loop");
-                    if (!jStep.HasMesh && jStep.NeedsMesh)
-                        jStep.SetRouteMesh();
+                        Debug.Log("JV Error: null jStep within CalculateMeshes loop");
+                    jStep.SetRouteMeshes();
                 }
-                Debug.Log("JV: CalculateMeshes has called SetRouteMesh for all jSteps");
+                Debug.Log("JV: CalculateMeshes has called SetRouteMesh for all " + m_StepIndex.Count + " jSteps");
+            }
+        }
+
+        public void ReheatMeshes()
+        {
+            lock (mgrLock)
+            {
+                foreach (JourneyStep jStep in m_StepIndex.Values)
+                {
+                    if (jStep == null)
+                    {
+                        Debug.Log("JV Error: null jStep within ReheatMeshes loop");
+                        return;
+                    }
+                    jStep.SetRouteMeshes(forceReheat: true);
+                }
             }
         }
 
@@ -154,7 +151,7 @@ namespace Journeys
                     return;
                 }
                 Material material = (layerMask & 1 << xlayer) != 0 ? xmaterial : xmaterial2;
-                Debug.Log("JV: m_stepIndex.Count is " + m_StepIndex.Count);
+                //Debug.Log("JV: m_stepIndex.Count is " + m_StepIndex.Count);
                 foreach (JourneyStep jStep in m_StepIndex.Values)
                 {
                     if (jStep == null)
@@ -164,15 +161,39 @@ namespace Journeys
             }
         }
 
+        public void HitSegmentLane(ushort segmentID, byte lane)
+        {
+            lock (mgrLock)
+            {
+                HashSet<ushort> hitlist = new HashSet<ushort>();
+                foreach (JourneyStep jStep in m_StepIndex.Values)
+                {
+                    List<ushort> outlist = jStep.HitSegmentLane(segmentID, lane);
+                    if (outlist != null) {
+                        foreach (ushort cim in outlist)
+                            hitlist.Add(cim);
+                    }
+                }
+                // I might at some point break this journey flagging out into a private (because would have to be unlocked) method
+                JourneyVisualizer theJV = Singleton<JourneyVisualizer>.instance;
+                foreach (ushort cim in hitlist)
+                {
+                    Journey journey = theJV.m_journeys[cim];
+                    foreach (ushort stepIdx in journey.m_steps)
+                    {
+                        m_StepIndex[stepIdx].ShowCitizen(cim);
+                    }
+                    theJV.m_selectedJourneysCount = hitlist.Count;
+                }
+            }
+        }
+
         public void DestroyAll()
         {
             lock (mgrLock)
             {
                 foreach (JourneyStep jStep in m_StepIndex.Values)
-                {
-                    jStep.KillLineMeshes();
-                    jStep.KillRouteMeshes();
-                }
+                    jStep.KillMeshes();
                 m_StepIndex = null;
                 m_HashToIdx = null;
                 m_indexStack = null;

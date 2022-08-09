@@ -23,17 +23,70 @@ namespace Journeys
 
         public static JourneyVisualizer instance;
         public JourneyStepMgr theStepManager;
-        private Dictionary<ushort, Journey> m_journeys;
+        public Dictionary<ushort, Journey> m_journeys;
         public int m_journeysCount;
+        public int m_selectedJourneysCount;
         private HashSet<InstanceID> m_targets;
         private InstanceID m_lastInstance;
         private bool m_journeysVisible;
         private int m_maxJourneysCount;
         private int m_journeyRefreshFrame;
+        private bool m_heatMap;
+        private int m_discreteHeats;
+        private bool m_heatOnlyAsSelected;
         private readonly object buildLock = new object();
         private readonly object renderLock = new object();
         private bool doneRender;
         private bool doneMeshes;
+
+        // this is a stopgap, ultimately I hope to be able to select by lane rather than by segment, in the first place
+        // but the mechanism will always be in place, for when you subselect by a lane that is not the primary clickedInstance
+        public ushort SelectedSegment { get; set; }
+        public byte CurrentLane { get; set; }
+
+        public bool GetHeatMap => m_heatMap;
+        public void ChangeHeatMap(bool newvalue)
+        {
+            if (m_heatMap == newvalue)
+                return;
+            lock (buildLock)
+            {
+                if (DoneRender)
+                {
+                    m_heatMap = newvalue;
+                    theStepManager.ReheatMeshes();
+                }
+            }
+        }
+        public int GetDiscreteHeats => m_discreteHeats;
+        public void ChangeDiscreteHeats(int newvalue)
+        {
+            if (m_discreteHeats == newvalue)
+                return;
+            lock (buildLock)
+            {
+                if (DoneRender)
+                {
+                    m_discreteHeats = newvalue;
+                    theStepManager.ReheatMeshes();
+                }
+            }
+        }
+        public bool GetHeatOnlyAsSelected => m_heatOnlyAsSelected;
+        public void ChangeHeatOnlyAsSelected(bool newvalue)
+        {
+            if (m_heatOnlyAsSelected == newvalue)
+                return;
+            lock (buildLock)
+            {
+                if (DoneRender)
+                {
+                    m_heatOnlyAsSelected = newvalue;
+                    theStepManager.ReheatMeshes();
+                }
+            }
+        }
+
 
         public bool DoneRender
         {
@@ -83,12 +136,18 @@ namespace Journeys
             theStepManager = new JourneyStepMgr();
             m_journeys = new Dictionary<ushort, Journey>();
             m_journeysCount = 0;
+            m_selectedJourneysCount = 0;
             m_maxJourneysCount = 500;                       // maybe more or less would be better.  PV has (hardcoded) 100 but that is def not enough for eg a full train.
             m_targets = new HashSet<InstanceID>();
             m_journeysVisible = true;
             m_lastInstance = InstanceID.Empty;
             doneRender = true;                          // doneRender is always true, but DoneRender is locked during rendering (also just in case, RenderJourneys resets it true after rendering)
-            doneMeshes = false; 
+            doneMeshes = false;
+            m_heatMap = false;
+            m_discreteHeats = 0;
+            m_heatOnlyAsSelected = false;
+            SelectedSegment = 0;
+            CurrentLane = 0;
             Debug.Log("JV: instance.Init has been run");
         }
 
@@ -196,6 +255,8 @@ namespace Journeys
                             m_journeyRefreshFrame = 0;
                     }
                 }
+                SelectedSegment = clickedInstance.NetSegment;       // which will set it to zero if not a segment selected
+                CurrentLane = 0;
                 if (theStepManager.StepCount > 0)
                     theStepManager.CalculateMeshes();
                 doneMeshes = true;
@@ -358,6 +419,7 @@ namespace Journeys
             {
                 m_journeys.Add(citizenID, journey);
                 ++m_journeysCount;                              // not sure if this is (now) used often enough in anger to be worth maintaining when m_journeys.Count would do
+                ++m_selectedJourneysCount;
             }
         }
 
@@ -417,6 +479,18 @@ namespace Journeys
             return outlist;
         }
 
+        public void SubSelectByLane(ushort segmentID, byte lane)
+        {
+            lock (buildLock)
+            {
+                if (segmentID == 0)
+                    return;
+                doneMeshes = false;     // not entirely true but stops RenderJourneys in the meantime
+                theStepManager.HitSegmentLane(segmentID, lane);
+                theStepManager.CalculateMeshes();               // this will do a reheat per flagged without forcing it (and without recalculating meshes if not needed. I really should rename it)
+                doneMeshes = true;
+            }
+        }
 
         // m_journeysVisible is this is the fundamental controller of whether SimulationStep happens or not (as well as the obvious meaning)
         // I thought there might be calls to PathsVisible from other managers, but there do not seem to be.  Still, I left it here for now.
@@ -475,33 +549,15 @@ namespace Journeys
             {
                 m_journeys.Clear();
                 m_journeysCount = 0;
+                m_selectedJourneysCount = 0;
             }
             Debug.Log("JV: finished JV.WipeSlate");
         }
 
-        // network manager insists on calling this, so it must exist
-        // if I were to allow for threading, this could be where to tell the current JSteps to calculate their route meshes
+        // network manager insists on calling this, so it must exist. But it's only called on quitting the PV
         public void UpdateData()
         {
             Debug.Log("JV: called UpdateData");
-            lock (m_journeys)
-            {
-                ushort dummy;
-                foreach (Journey j in m_journeys.Values)
-                    dummy = j.m_id;
-            }
-            //while (!Monitor.TryEnter(JourneyStepMgr.instance, SimulationManager.SYNCHRONIZE_TIMEOUT)) { }
-            //try
-            //{
-            //    foreach (JourneyStep jStep in JourneyStepMgr.instance.StepCollection.Values)
-            //    {
-            //        string dummy = jStep.Hashname;
-            //    }
-            //}
-            //finally
-            //{
-            //    Monitor.Exit(JourneyStepMgr.instance);
-            //}
         }
 
 
@@ -526,7 +582,7 @@ namespace Journeys
   //float endOffset,
   //float halfWidth,
   //float halfHeight,
-  //bool ignoreY)
+  //bool ignoreY)                                                  // this is set according to m_requireSurfaceLine (which I always have false).  Therefore in my cases I do not ignoreY.
   //  {
   //      if (curves != null)
   //          curves[curveIndex] = bezier;
