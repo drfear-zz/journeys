@@ -25,42 +25,85 @@ namespace Journeys
             }
             if (FlagShowJourneys)
             {
+                if (InfoManager.instance.CurrentMode == InfoManager.InfoMode.TrafficRoutes)
+                {
+                    UIView.library.Hide("TrafficRoutesInfoViewPanel");  // this happens when eg user goes to public transport view then back to PV view
+                }
                 JourneyVisualizer theJV = Singleton<JourneyVisualizer>.instance;
                 if (Input.GetKeyDown(KeyCode.K))
                 {
-                    theJV.ChangeHeatMap(!theJV.GetHeatMap);
-                    Debug.Log("JV: heatmap changed to " + theJV.GetHeatMap);
+                    theJV.ChangeHeatMap();
+                    Debug.Log("JV: heatmap changed to " + theJV.HeatMap);
                 }
-                if (Input.GetKeyDown(KeyCode.Comma))
+                if (Input.GetKeyDown(KeyCode.O))
                 {
-                    theJV.ChangeHeatOnlyAsSelected(!theJV.GetHeatOnlyAsSelected);
-                    Debug.Log("JV: only-as-selected changed to " + theJV.GetHeatOnlyAsSelected);
+                    theJV.ChangeHeatOnlyAsSelected();
+                    Debug.Log("JV: only-as-selected changed to " + theJV.HeatOnlyAsSelected);
                 }
                 if (Input.GetKeyDown(KeyCode.N))
                 {
-                    int newvalue = theJV.GetDiscreteHeats;
-                    if (++newvalue > 8)
-                        newvalue = 0;
-                    theJV.ChangeDiscreteHeats(newvalue);
-                    Debug.Log("JV: discrete categories changed to " + theJV.GetDiscreteHeats);
+                    theJV.ChangeDiscreteHeats();
+                    Debug.Log("JV: discrete categories changed to " + theJV.DiscreteHeats);
                 }
-                if (Input.GetKeyDown(KeyCode.Period))
+                //if (Input.GetKeyDown(KeyCode.Period))
+                //{
+                //    theJV.ChangeAbsoluteHeats();
+                //}
+                //if (Input.GetKeyDown(KeyCode.Minus))
+                //{
+                //    theJV.ChangeAbsoluteHeats(forwards: false);
+                //}
+                if (Input.GetKeyDown(KeyCode.P))
                 {
-                    if (theJV.SelectedSegment != 0)
-                    {
-                        int numlanes = Singleton<NetManager>.instance.m_segments.m_buffer[theJV.SelectedSegment].Info.m_lanes.Length;
-                        if (++theJV.CurrentLane == numlanes)
-                            theJV.CurrentLane = 0;
-                        theJV.SubSelectByLane(theJV.SelectedSegment, theJV.CurrentLane);
-                        Debug.Log("JV: lane selection, currently lane " + theJV.CurrentLane);
-                    }
+                    theJV.SubSelectByStep();
                 }
                 if (Input.GetKeyDown(KeyCode.L))
                 {
-                    theJV.m_FromToCode = theJV.m_FromToCode + 1;
-                    if (theJV.m_FromToCode == 3)
-                        theJV.m_FromToCode = 0;
-                    theJV.FromToHere();
+                    theJV.SubSelectByLane();
+                }
+                if (Input.GetKeyDown(KeyCode.H))
+                {
+                    theJV.ToggleFromToHere();
+                }
+                if (Input.GetKeyDown(KeyCode.Comma))
+                {
+                    theJV.ToggleTransportSteps();
+                }
+                if (Input.GetKeyDown(KeyCode.Keypad0))
+                {
+                    theJV.ByJourney();
+                }
+                if (Input.GetKeyDown(KeyCode.Keypad1))
+                {
+                    theJV.ToggleAllCars();
+                }
+                if (Input.GetKeyDown(KeyCode.Keypad2))
+                {
+                    theJV.ToggleShowPTstretches();
+                }
+                if (Input.GetKeyDown(KeyCode.Keypad3))
+                {
+                    theJV.ToggleShowBlended();
+                }
+                if (Input.GetKeyDown(KeyCode.Keypad7))
+                {
+                    theJV.SubselectByLaneLine();
+                }
+                if (Input.GetKeyDown(KeyCode.Keypad4))
+                {
+                    theJV.SubselectByLaneLine(forwards: false);
+                }
+                if (Input.GetKeyDown(KeyCode.Keypad5))
+                {
+                    theJV.ShowAllJourneys();
+                }
+                if (Input.GetKeyDown(KeyCode.Keypad6))
+                {
+                    theJV.ToggleShowPTstops();
+                }
+                if (Input.GetKeyDown(KeyCode.Keypad8))
+                {
+                    theJV.ChangeMinWidth();
                 }
             }
             if (FlagShowJourneys && flagChanged)
@@ -77,7 +120,7 @@ namespace Journeys
                 Debug.Log("JV redirector deployed");
                 InfoManager.instance.SetCurrentMode(InfoManager.InfoMode.TrafficRoutes, InfoManager.SubInfoMode.Default);
                 UIView.library.Hide("TrafficRoutesInfoViewPanel");
-                //Singleton<JourneysPanel>.instance.Show();
+                Singleton<JourneysButton>.instance.Show();
             }
             else if (flagChanged && Redirector<JourneyDetourer>.IsDeployed())
             {

@@ -9,7 +9,7 @@ namespace Journeys
 {
     public class JourneysMod : IUserMod
     {
-        public string Name => "Journeys v6";
+        public string Name => "Journeys v8.0";
 
         public string Description => "Show full citizen journeys including their public transport rides";
 

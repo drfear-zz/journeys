@@ -70,6 +70,7 @@
     <Compile Include="JourneyDetourer.cs" />
     <Compile Include="Journey.cs" />
     <Compile Include="JourneysLoadingExtension.cs" />
+    <Compile Include="JourneysButton.cs" />
     <Compile Include="JourneyStep.cs" />
     <Compile Include="JourneyStepMgr.cs" />
     <Compile Include="JourneysToggle.cs" />

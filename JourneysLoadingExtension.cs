@@ -31,10 +31,10 @@ namespace Journeys
                     //journeysGameObject.AddComponent<JourneyStepMgr>();
                     //JourneyStepMgr.instance.Init();
                     Debug.Log("done loading JVisualizer!");
-                    //journeysGameObject.AddComponent<JourneysPanel>();
-                    //Debug.Log("done adding panel");
-                    //JourneysPanel.instance.Init();
-                    //Debug.Log("done call to panel Init");
+                    journeysGameObject.AddComponent<JourneysPanel>(); // this calls Awake
+                    journeysGameObject.AddComponent<JourneysButton>(); // this calls Awake
+                    Debug.Log("done adding panel component");
+                    //Singleton<JourneysButton>.instance.Show();
                 }
                 catch
                 {

@@ -1,8 +1,8 @@
 ﻿using ColossalFramework;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-
 
 
 namespace Journeys
@@ -18,9 +18,9 @@ namespace Journeys
 
     public class Waypoint
     {
-        public ushort Segment { get; }
+        public ushort Segment { get; private set;  }
 
-        public byte Offset { get; }
+        public byte Offset { get; set; }
 
         public byte Lane { get; }
 
@@ -35,6 +35,25 @@ namespace Journeys
             Segment = pathPosition.m_segment;
             Offset = pathPosition.m_offset;
             Lane = pathPosition.m_lane;
+        }
+
+        public Waypoint(ushort seg, byte lane, byte offset)
+        {
+            Segment = seg;
+            Offset = offset;
+            Lane = lane;
+        }
+
+        public void Rationalize(LineColorPair lcpair)
+        {
+            if (lcpair.m_travelmode > 31)
+                if (Offset != 0 && Offset != 255)
+                    Offset = 128;
+        }
+
+        public Waypoint Clone()
+        {
+            return new Waypoint(Segment,Lane, Offset);
         }
 
     }
@@ -90,7 +109,7 @@ namespace Journeys
 
         public Waypoint StartStep { get; private set; }
         public Waypoint EndStep { get; private set; }
-        private List<Waypoint> m_route;         // really not needed after debugging, this is only needed to redraw the meshdata from scratch (which is never needed)
+        public List<Waypoint> m_route;         // the m_route is a full (landroute) list of segments including eg trams on roads
 
         private RenderGroup.MeshData[] m_RouteMeshes;   // will form the basis for the Mesh[]es in each LineInfo
         private float m_routemeshHalfwidth;
@@ -101,6 +120,7 @@ namespace Journeys
 
         private Dictionary<ushort, CimStepInfo> m_Cims;
         private Dictionary<int, LineInfo> m_Lineinfo;
+        private LineInfo m_blendedLineInfo;              // separate mesh for case of wanting blended mesh for whole step
 
         public int RawHeat { get; private set; }        // could be implemented as just m_Cims.Count, but frequent reference is wanted so make as quick as possible
         public int SubHeat { get; private set; }       // this is the number of cims showing (ie marked as m_showCim=true in m_Cims); heat of the subselection
@@ -109,7 +129,14 @@ namespace Journeys
         public bool NeedsMesh { get; private set; }
         public bool HasMesh => m_RouteMeshes != null;
 
-        private class CimStepInfo
+        public Dictionary<ushort, CimStepInfo> GetCimsDict()
+        {
+            return m_Cims;
+        }
+
+
+
+        public class CimStepInfo
         {
             public int m_travelMode;
             public bool m_showCim;
@@ -131,6 +158,12 @@ namespace Journeys
             public int LineHeat { get; set; }
             public int LineSubHeat { get; set; }
 
+            public LineInfo()
+            {
+                LineHeat = 0;
+                m_meshes = null;
+            }
+
             public LineInfo(bool show, Color lineColor)
             {
                 LineHeat = 1;
@@ -139,6 +172,16 @@ namespace Journeys
                 else
                     LineSubHeat = 0;
                 m_lineColor = lineColor;
+                m_meshes = null;
+            }
+
+            public LineInfo(Color lineColor, Color heatColor, float halfwidth, int lineHeat, int lineSubHeat)
+            {
+                m_lineColor=lineColor;
+                m_heatColor=heatColor;
+                m_halfWidth = halfwidth;
+                LineHeat = lineHeat;
+                LineSubHeat = lineSubHeat;
                 m_meshes = null;
             }
 
@@ -160,33 +203,8 @@ namespace Journeys
 
             public void HideOneCim() => --LineSubHeat;
             public void UnhideOneCim() => ++LineSubHeat;
-            public void NullifyMeshes()
-            {
-                if (m_meshes == null)
-                    return;
-                for (int idx = 0; idx < m_meshes.Length; idx++)
-                {
-                    Mesh mesh = m_meshes[idx];
-                    if (mesh != null) UnityEngine.Object.Destroy(mesh); 
-                }
-                m_meshes = null;
-            }
+            public void NullifyMeshes() => m_meshes = null;
         }
-
-        //public void KillRouteMeshes()
-        //{
-        //    lock (jstepLock)
-        //    {
-        //        if (m_RouteMeshes == null)
-        //            return;
-        //        for (int idx = 0; idx < m_RouteMeshes.Length; idx++)
-        //        {
-        //            var mesh = m_RouteMeshes[idx];
-        //            if (mesh != null) mesh. UnityEngine.Object.Destroy(mesh);  // this might not really be needed, GC should take care of it, but I follow PV usage
-        //        }
-        //        m_RouteMeshes = null;
-        //    }
-        //}
 
         public void KillMeshes()
         {
@@ -209,33 +227,25 @@ namespace Journeys
         // do not have an instance of the same step already in the list
         public JourneyStep(List<Waypoint> route, ushort citizenID, LineColorPair lineColorPair, bool endJourney, bool show = true)
         {
-            //lock (jstepLock)    // this probably makes no difference in a constructor. If meshes are here, the constructor exits with the meshes still not assigned anyway
-            //{
-                //Debug.Log("In JourneyStep constructor with args\nroute: " + Printlist(route) + "\ncitizenID: " + citizenID +
-                //    "\nLineColorPair travelmode: " + lineColorPair.m_travelmode + "\nendJourney: " + endJourney);
-                StartStep = route[0];
-                EndStep = route[route.Count - 1];
+            StartStep = route[0];
+            EndStep = route[route.Count - 1];
             m_route = new List<Waypoint>();
             m_route.AddRange(route);
-                // m_route = route;
-                m_Cims = new Dictionary<ushort, CimStepInfo>();
-                m_Lineinfo = new Dictionary<int, LineInfo>();
-                m_Cims.Add(citizenID, new CimStepInfo(lineColorPair.m_travelmode, show));
-                RawHeat = 1;
-                if (show)
-                    SubHeat = 1;
-                else
-                    SubHeat = 0;
-                m_Lineinfo.Add(lineColorPair.m_travelmode, new LineInfo(show, lineColorPair.m_lineColor));
-                NeedsReheat = true;
-                NeedsMesh = true;
-                m_endJourney = endJourney;
-                m_routemeshHalfwidth = 4f;
-                m_routemeshHalfheight = 5f;
-                //m_RouteMeshes = CreateMesh(route, endJourney, m_routemeshHalfwidth, m_routemeshHalfheight);
-                //NeedsMesh = false;
-            //}
-//            SetRouteMesh(route, endJourney, lineColorPair.m_lineColor, 4f, 5f);
+            m_Cims = new Dictionary<ushort, CimStepInfo>();
+            m_Lineinfo = new Dictionary<int, LineInfo>();
+            m_blendedLineInfo = new LineInfo();
+            m_Cims.Add(citizenID, new CimStepInfo(lineColorPair.m_travelmode, show));
+            RawHeat = 1;
+            if (show)
+                SubHeat = 1;
+            else
+                SubHeat = 0;
+            m_Lineinfo.Add(lineColorPair.m_travelmode, new LineInfo(show, lineColorPair.m_lineColor));
+            NeedsReheat = true;
+            NeedsMesh = true;
+            m_endJourney = endJourney;
+            m_routemeshHalfwidth = 4f;  // just to get things started. This gets reset before use in fact
+            m_routemeshHalfheight = 5f; // this I have never changed from the PV original
         }
 
         private class TravelHeats
@@ -251,21 +261,28 @@ namespace Journeys
                 if (NeedsMesh || NeedsReheat || forceReheat)
                 {
                     var theJV = Singleton<JourneyVisualizer>.instance;
-                    bool ignoreHidden = !theJV.GetHeatOnlyAsSelected;
-                    int denominator = ignoreHidden ? theJV.m_journeysCount : theJV.m_selectedJourneysCount;
-                    int discreteCats = theJV.GetDiscreteHeats;
+                    //bool ignoreHidden = !theJV.HeatOnlyAsSelected;    // now using absolute heats everywhere, it is never appropriate to use raw instead of sub
+                    //int discreteCats = theJV.DiscreteHeats;
+                    //int absoluteCats = theJV.AbsoluteHeats;
+                    bool showBlended = theJV.ShowBlended;
+                    int hottestLineIndex = 0;
+                    //float ratio;
+
+                    //int stepHeat = ignoreHidden ? RawHeat : this.SubHeat;
+                    if (SubHeat == 0)
+                        return;
+
                     if (NeedsMesh)
                     {
                         if (m_route == null)
                         {
-                            Debug.Log("JV: SetRouteMesh called to create mesh with empty m_route");
+                            Debug.Log("JV Error: SetRouteMesh called to create mesh with empty m_route");
                             return;
                         }
                         // with multiple lines, the first is drawn to width per overall RawHeat, which is also the case when there is only one (so lineheat = rawheat)
-                        m_routemeshHalfwidth = JVutils.HalfWidthHeat(RawHeat, denominator, discreteCats);
+                        //m_routemeshHalfwidth = JVutils.HalfWidthHeat(JVutils.CalculateRatio(RawHeat, denominator, discreteCats, absoluteCats),  discreteCats);
+                        m_routemeshHalfwidth = JVutils.Categorize(RawHeat);
                         m_RouteMeshes = JVutils.CreateMeshData(m_route, m_endJourney, m_routemeshHalfwidth, m_routemeshHalfheight);
-                        //Debug.Log("JV before adjust, first vertex: " + JVutils.VDprint(m_RouteMeshes[0].m_vertices[0]));
-                        //Debug.Log("JV: length of RouteMeshes: " + m_RouteMeshes.Length);
                         NeedsMesh = false;
                     }
                     int lineInfoCount = m_Lineinfo.Count;
@@ -275,37 +292,68 @@ namespace Journeys
                         TravelHeats[] heats = new TravelHeats[lineInfoCount];
                         foreach (int line in m_Lineinfo.Keys)
                         {
-                            heats[lineIdx++] = new TravelHeats { m_travelMode = line, m_heat = ignoreHidden ? m_Lineinfo[line].LineHeat : m_Lineinfo[line].LineSubHeat };
+                            //heats[lineIdx++] = new TravelHeats { m_travelMode = line, m_heat = ignoreHidden ? m_Lineinfo[line].LineHeat : m_Lineinfo[line].LineSubHeat };
+                            heats[lineIdx++] = new TravelHeats { m_travelMode = line, m_heat = m_Lineinfo[line].LineSubHeat };
                         }
                         IOrderedEnumerable<TravelHeats> sorted = heats.OrderByDescending(x => x.m_heat);
-                        int stepHeat = ignoreHidden ? RawHeat : SubHeat;
-                        int usedHeat = 0;
+                        hottestLineIndex = sorted.First().m_travelMode;
+                        //int usedHeat = 0;
+                        //foreach (TravelHeats heat in sorted)
+                        //{
+                        //    int remainingHeat = stepHeat - usedHeat;
+                        //    //Debug.Log("sorted.m_heat is " + heat.m_heat + ", stepHeat is " + stepHeat + ", usedHeat is " + usedHeat + ", remainingHeat is " + remainingHeat);
+                        //    if (remainingHeat <= 0)
+                        //        break;
+                        //    LineInfo thisLineinfo = m_Lineinfo[heat.m_travelMode];
+                        //    if (absoluteCats > 0)
+                        //    {
+                        //        ratio = JVutils.CalculateRatio(heat.m_heat, denominator, discreteCats, absoluteCats);
+                        //    }
+                        //    else
+                        //    {
+                        //        ratio = JVutils.CalculateRatio(remainingHeat, denominator, discreteCats, absoluteCats);
+                        //    }
+                        //    thisLineinfo.m_halfWidth = JVutils.HalfWidthHeat(ratio, discreteCats);
+                        //    //Debug.Log("halfWidth is " + thisLineinfo.m_halfWidth);
+                        //    thisLineinfo.m_heatColor = JVutils.ColourHeat(ratio);
+                        //    thisLineinfo.SetMesh(m_RouteMeshes, m_routemeshHalfwidth);
+                        //    usedHeat += heat.m_heat;
+                        //}
                         foreach (TravelHeats heat in sorted)
                         {
-                            int remainingHeat = stepHeat - usedHeat;
-                            if (remainingHeat <= 0)
-                                break;
                             LineInfo thisLineinfo = m_Lineinfo[heat.m_travelMode];
-                            thisLineinfo.m_halfWidth = JVutils.HalfWidthHeat(remainingHeat, denominator, discreteCats);
-                            thisLineinfo.m_heatColor = JVutils.ColourHeat(remainingHeat, denominator, discreteCats);
+                            int cat = JVutils.Categorize(heat.m_heat);
+                            thisLineinfo.m_halfWidth = JVutils.HalfWidthHeat(cat);
+                            thisLineinfo.m_heatColor = JVutils.cutoffsColor[cat];
                             thisLineinfo.SetMesh(m_RouteMeshes, m_routemeshHalfwidth);
-                            usedHeat = heat.m_heat;
                         }
                     }
                     else
                     {
-                        int stepHeat = ignoreHidden ? RawHeat : SubHeat;
-                        if (stepHeat > 0)
-                        {
-                            LineInfo thisLineinfo = m_Lineinfo[m_Lineinfo.First().Key];                 // it's not really .First, it's the only one
-                            thisLineinfo.m_halfWidth = JVutils.HalfWidthHeat(stepHeat, denominator, discreteCats);
-                            thisLineinfo.m_heatColor = JVutils.ColourHeat(stepHeat, denominator, discreteCats);
-                            thisLineinfo.SetMesh(m_RouteMeshes, m_routemeshHalfwidth);
-                        }
+                        hottestLineIndex = m_Lineinfo.First().Key;
+                        LineInfo thisLineinfo = m_Lineinfo[hottestLineIndex];                 // it's not really .First, it's the only one
+                        int cat = JVutils.Categorize(SubHeat);
+                        thisLineinfo.m_halfWidth = JVutils.HalfWidthHeat(cat);
+                        thisLineinfo.m_heatColor = JVutils.cutoffsColor[cat];
+                        thisLineinfo.SetMesh(m_RouteMeshes, m_routemeshHalfwidth);
                     }
-                    NeedsReheat = false;
+                    if (showBlended && lineInfoCount > 1)
+                    {
+                        int cat = JVutils.Categorize(SubHeat);
+                        m_blendedLineInfo = new LineInfo(
+                            lineColor: m_Lineinfo[hottestLineIndex].m_lineColor,
+                            heatColor: JVutils.cutoffsColor[cat],
+                            halfwidth: JVutils.HalfWidthHeat(cat),
+                            lineHeat: RawHeat,
+                            lineSubHeat: this.SubHeat);
+                        m_blendedLineInfo.SetMesh(m_RouteMeshes, m_routemeshHalfwidth);
+                    }
+                    else
+                        m_blendedLineInfo = m_Lineinfo[hottestLineIndex];
                 }
             }
+
+            NeedsReheat = false;
         }
 
         public string Printlist(List<Waypoint> wplist)
@@ -316,6 +364,35 @@ namespace Journeys
                 ans = ans + idx.Segment + ", ";
             }
             return ans;
+        }
+
+        public void DumpStep(ushort stepID)
+        {
+            string ans = "\nDump of step " + stepID;
+            ans = ans + "\nPointA: seg " + StartStep.Segment + " lane: " + StartStep.Lane + " offset: " + StartStep.Offset;
+            ans = ans + "\nPointB: seg " + EndStep.Segment + " lane: " + EndStep.Lane + " offset: " + EndStep.Offset;
+            List<ushort> cimlist = new List<ushort>();
+            foreach (ushort cim in m_Cims.Keys)
+                cimlist.Add(cim);
+            ans = ans + "\nNumber of cims: " + cimlist.Count + "\n";
+            ans = ans + "RawHeat: " + RawHeat + "  SubHeat: " + SubHeat + "\n";
+            ans += "List of cims(travelMode, showCim): ";
+            foreach (ushort cim in cimlist)
+            {
+                ans = ans + " " + cim + "(" + m_Cims[cim].m_travelMode + ", " + m_Cims[cim].m_showCim + ")";
+            }
+            ans += "\nList of lines (LineHeat, LineSubHeat): ";
+            foreach (int line in m_Lineinfo.Keys)
+            {
+                ans = ans + " " + line + "(" + m_Lineinfo[line].LineHeat + ", " + m_Lineinfo[line].LineSubHeat + ")";
+            }
+            Debug.Log(ans);
+        }
+
+        // a property used by FromTo process for LineMode, nb no test for contains key because in this context it MUST already
+        public bool HasOnLine(ushort citizenID, ushort line)
+        {
+            return (m_Cims[citizenID].m_travelMode - 32) == line;
         }
 
         public bool AugmentStepData(ushort citizenID, LineColorPair lineColorPair, bool show = true)
@@ -373,12 +450,22 @@ namespace Journeys
             }
         }
 
+        public HashSet<ushort> GetCims()
+        {
+            HashSet<ushort> ret = new HashSet<ushort>();
+            foreach (ushort cim in m_Cims.Keys)
+            {
+                ret.Add(cim);
+            }
+            return ret;
+        }
+
+
         public List<ushort> HitSegmentLane(ushort segmentID, byte lane)
         {
             lock (jstepLock)
             {
                 HideAllCims();
-                HashSet<ushort> outhash = new HashSet<ushort>();
                 bool foundhit = false;
                 foreach (Waypoint waypoint in m_route)
                 {
@@ -399,18 +486,37 @@ namespace Journeys
             }
         }
 
-        private void HideAllCims()
+        public void HideAllCims(bool dolock=false)
         {
-            foreach (CimStepInfo ciminfo in m_Cims.Values)
+            if (dolock)
             {
-                ciminfo.m_showCim = false;
+                lock (jstepLock)
+                {
+                    foreach (CimStepInfo ciminfo in m_Cims.Values)
+                    {
+                        ciminfo.m_showCim = false;
+                    }
+                    foreach (LineInfo linfo in m_Lineinfo.Values)
+                    {
+                        linfo.LineSubHeat = 0;
+                    }
+                    SubHeat = 0;
+                    NeedsReheat = true;
+                }
             }
-            foreach (LineInfo linfo in m_Lineinfo.Values)
+            else
             {
-                linfo.LineSubHeat = 0;
+                foreach (CimStepInfo ciminfo in m_Cims.Values)
+                {
+                    ciminfo.m_showCim = false;
+                }
+                foreach (LineInfo linfo in m_Lineinfo.Values)
+                {
+                    linfo.LineSubHeat = 0;
+                }
+                SubHeat = 0;
+                NeedsReheat = true;
             }
-            SubHeat = 0;
-            NeedsReheat = true;
         }
 
         // Does nothing if the citizen is not here, or already hidden
@@ -447,34 +553,83 @@ namespace Journeys
             }
         }
 
+        public void ShowAllCitizens()
+        {
+            lock (jstepLock)
+            {
+                foreach (CimStepInfo csi in m_Cims.Values)
+                {
+                    csi.m_showCim = true;
+                }
+                foreach (LineInfo lif in m_Lineinfo.Values)
+                {
+                    lif.LineSubHeat = lif.LineHeat;
+                }
+                SubHeat = RawHeat;
+                NeedsReheat = true;
+            }
+        }
+
+        public bool IsTransportStep()
+        {
+            foreach (CimStepInfo csi in m_Cims.Values)
+            {
+                return csi.m_travelMode > 31;
+            }
+            return false;
+        }
+
         public void DrawTheMeshes(RenderManager.CameraInfo cameraInfo, Material material)
         {
             lock (jstepLock)
             {
                 if (NeedsReheat || NeedsMesh || SubHeat == 0)
                     return;
+                JourneyVisualizer theJV = Singleton<JourneyVisualizer>.instance;
                 NetManager theNetManager = Singleton<NetManager>.instance;
                 TransportManager theTransportManager = Singleton<TransportManager>.instance;
                 material.SetFloat(theTransportManager.ID_StartOffset, -1000f);        // this is the "generic" usage (transportline and netadjust use this, although PV version does not
-                bool heatmap = Singleton<JourneyVisualizer>.instance.GetHeatMap;
-                foreach (LineInfo thisLineInfo in m_Lineinfo.Values)
+                bool heatmap = theJV.HeatMap;
+                List<LineInfo> lineInfos = new List<LineInfo>();
+                if (theJV.ShowBlended)
+                {
+                    lineInfos.Add(m_blendedLineInfo);
+                }
+                else
+                {
+                    lineInfos = m_Lineinfo.Values.ToList();
+                }
+                foreach (LineInfo thisLineInfo in lineInfos)
                 {
                     if (thisLineInfo.LineSubHeat == 0)
                         continue;
                     material.color = heatmap ? thisLineInfo.m_heatColor : thisLineInfo.m_lineColor;
                     int length = thisLineInfo.m_meshes.Length;
+                    // in current version of program with "short steps" there is only ever one mesh in this array, in fact
                     for (int index = 0; index < length; ++index)
                     {
                         Mesh mesh = thisLineInfo.m_meshes[index];
+                        // trying out printing just part of the mesh.  Does a very weird thing, draws spotted mesh (not just first part of mesh)
+                        //Mesh testmesh = new Mesh();
+                        //testmesh.vertices = mesh.vertices.Take(8).ToArray();
+                        //testmesh.tangents = mesh.tangents.Take(8).ToArray();
+                        //testmesh.uv = mesh.uv.Take(8).ToArray();
+                        //testmesh.uv2 = mesh.uv2.Take(8).ToArray();
+                        //testmesh.colors32 = mesh.colors32.Take(8).ToArray();
+                        //testmesh.triangles = mesh.triangles.Take(30).ToArray();
+                        //testmesh.RecalculateBounds();
+
+                        //if (testmesh != null && cameraInfo.Intersect(testmesh.bounds))
                         if (mesh != null && cameraInfo.Intersect(mesh.bounds))
                         {
-                            //if (thisSubJourney.m_requireSurfaceLine)
-                            //    theTerrainManager.SetWaterMaterialProperties(mesh.bounds.center, material);
-                            if (material.SetPass(0))
+                                //if (thisSubJourney.m_requireSurfaceLine)
+                                //    theTerrainManager.SetWaterMaterialProperties(mesh.bounds.center, material);
+                                if (material.SetPass(0))
                             {
                                 //Debug.Log("about to call DrawMeshNow");
                                 ++theNetManager.m_drawCallData.m_overlayCalls;
                                 Graphics.DrawMeshNow(mesh, Matrix4x4.identity);
+                                //Graphics.DrawMeshNow(testmesh, Matrix4x4.identity);
                             }
                         }
                     }
@@ -484,5 +639,6 @@ namespace Journeys
 
 
     }
+
 }
 

@@ -26,11 +26,9 @@ namespace Journeys
         public Dictionary<ushort, Journey> m_journeys;
         public HashSet<ushort> m_selectedCims;
         public HashSet<ushort> m_subselectedCims;
-        public HashSet<ushort> m_subselectedCims2;
         public HashSet<ushort> m_subsubselectedCims;
         public HashSet<InstanceID> m_targets;
         public List<ushort> m_targetSteps;
-        public List<ushort> m_targetSteps2;
         private List<ushort> m_subtargetSteps;
         private List<ushort> m_stepsList;
         private JourneyStepMgr.LaneLineSet m_LLTargetSteps;
@@ -38,16 +36,13 @@ namespace Journeys
         private int m_BJendIndex;
         private int m_BJcimIndex;
         private InstanceID m_lastInstance;
-        private InstanceID m_lastInstance2;
         private bool m_journeysVisible;
         private bool m_showAllCars;
-        public int m_maxJourneysCount;
+        private int m_maxJourneysCount;
         private readonly object buildLock = new object();
         private readonly object renderLock = new object();
-        private readonly object wipeLock = new object();
         private bool doneRender;
         private bool doneMeshes;
-
 
         public void ToggleAllCars()
         {
@@ -55,12 +50,10 @@ namespace Journeys
             Debug.Log("toggled m_showAllCars to " + m_showAllCars);
             m_lastInstance = InstanceID.Empty;
             SimulationStep(0);
-            ShowJourneys();
         }
 
 
         public ushort SelectedSegment { get; set; }
-        public ushort SelectedSegment2 { get; set; }
         public NetInfo SelectedSegInfo { get; set; }
         public byte CurrentLane { get; private set; }
         public byte NumLanes { get; set; }
@@ -82,17 +75,6 @@ namespace Journeys
         public bool ByJourneyInitiated { get; private set; }
         public int TargetStepsIdx { get; private set; }
         public bool SubselectByLaneLineInitiated { get; set; }
-        public bool LineMode { get; set; }
-        public ushort SelectedLine { get; set; }
-        public bool RefreshJourneys { get; set; }
-        public int MinHalfwidth { get; set; }
-        public int PTstretchExcluded { get; set; }
-        public int TouristFlag { get; set; }
-        public bool MakeSecondarySelection { get; set; }
-        public int SecondaryExcluded { get; set; }
-        public bool ModeSecondarySelection { get; set; }
-        public bool MakeExtendedSelection { get; set; }
-        public bool ModeExtendedSelection { get; set; }
 
 
 
@@ -134,7 +116,7 @@ namespace Journeys
         private void Awake()
         {
             instance = this;
-            //Debug.Log("JV: Awake has set instance");
+            Debug.Log("JV: Awake has set instance");
         }
 
         // there is no Init in PV, but that is because PV creation is done differently in NM
@@ -146,38 +128,26 @@ namespace Journeys
             m_journeys = new Dictionary<ushort, Journey>();
             m_selectedCims = new HashSet<ushort>();
             m_subselectedCims = new HashSet<ushort>();
-            m_subselectedCims2 = new HashSet<ushort>();
             m_subsubselectedCims = new HashSet<ushort>();
             m_maxJourneysCount = 5000;                       // maybe more or less would be better.  PV has (hardcoded) 100 but that is def not enough for eg a full train.
             m_targets = new HashSet<InstanceID>();
             m_targetSteps = new List<ushort>();
-            m_targetSteps2 = new List<ushort>();
             m_subtargetSteps = new List<ushort>();
             m_stepsList = new List<ushort>();
             m_BJcimsList = new List<ushort>();
             m_journeysVisible = true;
             m_lastInstance = InstanceID.Empty;
-            m_lastInstance2 = InstanceID.Empty;
             doneRender = true;                          // doneRender is always true, but DoneRender is locked during rendering (also just in case, RenderJourneys resets it true after rendering)
             doneMeshes = false;
             HeatMap = false;
             DiscreteHeats = 0;
             AbsoluteHeats = 0;
-            MinHalfwidth = 1;
             ShowBlended = false;
-            HeatOnlyAsSelected = false;
-            ShowOnlyTransportSteps = true;
+            HeatOnlyAsSelected = true;
+            ShowOnlyTransportSteps = false;
             ShowPTStops = false;
             FromToFlag = 0;
-            TouristFlag = 0;
-            LineMode = false;
-            RefreshJourneys = false;
-            SubselectByLaneLineInitiated = false;
-            MakeSecondarySelection = false;
-            ModeSecondarySelection = false;
-            MakeExtendedSelection = false;
-            ModeExtendedSelection = false;
-            //Debug.Log("JV: instance.Init has been run");
+            Debug.Log("JV: instance.Init has been run");
         }
 
         private void OnDestroy()
@@ -204,21 +174,11 @@ namespace Journeys
                 // but JV freezes journey info at the time of selection
                 // because it could then happen that a citizen appears more than once, ie with the same ref number recycled)
                 InstanceID clickedInstance = Singleton<InstanceManager>.instance.GetSelectedInstance();
-                if (! RefreshJourneys && (clickedInstance == m_lastInstance || clickedInstance == m_lastInstance2 || clickedInstance == null))
+                if (clickedInstance == m_lastInstance || clickedInstance == null)
                     return;
-                if (MakeSecondarySelection)
-                {
-                    AddSecondarySelection(clickedInstance);
-                    return;
-                }
                 m_lastInstance = clickedInstance;
                 doneMeshes = false;
-                if (!MakeExtendedSelection)
-                    WipeSlate();
-                ByJourneyInitiated = false;
-                SubselectByLaneLineInitiated = false;
-                SelectedSegment2 = 0;
-                LineMode = false;
+                //Debug.Log("Starting new instance");
                 if (clickedInstance.Citizen != 0U)
                 {
                     // Debug.Log("Selected a citizen");
@@ -226,6 +186,7 @@ namespace Journeys
                     uint pathID = theCitizenManager.m_instances.m_buffer[citizenInstanceID].m_path;
                     if (citizenInstanceID != 0 && pathID != 0)
                     {
+                        WipeSlate();
                         PathUnit pathunit = thePathManager.m_pathUnits.m_buffer[pathID];
                         int pathPositionIndex = theCitizenManager.m_instances.m_buffer[citizenInstanceID].m_pathPositionIndex;
                         if (!pathunit.GetPosition(pathPositionIndex >> 1, out PathUnit.Position thisPathPosition))
@@ -241,6 +202,8 @@ namespace Journeys
                 // note PV has a special procedure for bikes (finds their owners). This is not needed in JV, ALL vehicles have their "passengers" in citizenUnits member
                 else if (clickedInstance.Vehicle != 0)
                 {
+                    Debug.Log("Selected a new vehicle");
+                    WipeSlate();
                     bool carPath = false;
                     bool firstloop = true;
                     int loopLimit = 0;
@@ -290,6 +253,7 @@ namespace Journeys
                                         InstanceID newID = InstanceID.Empty;
                                         newID.NetSegment = thisPathPosition.m_segment;
                                         m_targets.Add(newID);
+                                        Debug.Log("Done vehicle selection, vehicle on segment " + SelectedSegment);
                                         firstloop = false;
                                     }
                                     if (carPath)
@@ -319,31 +283,30 @@ namespace Journeys
                 }
                 else if (clickedInstance.NetSegment != 0 || clickedInstance.Building != 0 || (clickedInstance.District != 0 || clickedInstance.Park != 0))
                 {
+                    WipeSlate();
                     AddJourneys(clickedInstance);
                     SelectedSegment = clickedInstance.NetSegment;       // which will set it to zero if not a segment selected
-                }
-                if (clickedInstance.TransportLine != 0)
+               }
+                else if (clickedInstance.TransportLine != 0)
                 {
-                    LineMode = true;
-                    SelectedLine = clickedInstance.TransportLine;
-                    AddLineJourneys(SelectedLine);
-                    Debug.Log("Selected " + m_selectedCims.Count + " journeys on this line");
-                    Singleton<JourneysPanel>.instance.UpdateBothSelected(m_selectedCims.Count, m_subselectedCims.Count, jqualifier: " journeys on this line");
+                    Debug.Log("selected transport line " + clickedInstance.TransportLine);
+                    return;
                 }
-                else
-                {
-                    Debug.Log("Selected " + m_selectedCims.Count + " journeys");
-                    SelectedSegInfo = Singleton<NetManager>.instance.m_segments.m_buffer[SelectedSegment].Info;
-                    Singleton<JourneysPanel>.instance.UpdateBothSelected(m_selectedCims.Count, m_subselectedCims.Count);
-                }
+                SelectedSegInfo = Singleton<NetManager>.instance.m_segments.m_buffer[SelectedSegment].Info;
+                m_subselectedCims.Clear();
+                foreach (ushort cim in m_selectedCims)
+                    m_subselectedCims.Add(cim);
                 m_targetSteps = theStepManager.GetTargetSteps();
-                m_subtargetSteps = theStepManager.GetTargetSteps();
-                ShowJourneys();
-                if (!ModeExtendedSelection)
+                Debug.Log("Length of targetSteps: " + m_targetSteps.Count);
+                foreach (ushort kdx in m_targetSteps)
                 {
-                    MakeExtendedSelection = false;
-                    Singleton<JourneysPanel>.instance.PanelRefreshExtendMode();
+                    theStepManager.GetStep(kdx).DumpStep(kdx);
                 }
+                m_subtargetSteps = theStepManager.GetTargetSteps();
+                FromToFlag = 0;
+                if (theStepManager.StepCount > 0)
+                    theStepManager.CalculateMeshes();
+                //theStepManager.LogSteps();
                 doneMeshes = true;
             }
         }
@@ -356,56 +319,60 @@ namespace Journeys
 
         private void AddJourneys(InstanceID target)
         {
-            // m_targets is a SET of targets, noting a building can have more than one node (and certainly a line, region or park does)
-            //m_targets.Clear();   // rely on this being done in WipeSlate or otherwise appropriately not cleared
-            if (target.Building != 0)
+            // m_targets is a SET of targets, noting a building can have more than one node (and certainly a region or park does)
+            m_targets.Clear();
+            // if target is not a building, the only thing AddJourneys does is to add target to m_targets (after having cleared it first)
+            switch (target.Building)
             {
-                BuildingManager theBuildingManager = Singleton<BuildingManager>.instance;
-                NetManager theNetManager = Singleton<NetManager>.instance;
-                int loopLimit = 0;
-                while (target.Building != 0)
-                {
-                    // whatever else happens, add the target building to m_targets
-                    m_targets.Add(target);
-                    // lookup the netNode on which the building sits
-                    ushort targetNetNode = theBuildingManager.m_buildings.m_buffer[target.Building].m_netNode;
-                    int loopLimit2 = 0;
-                    while (targetNetNode != 0)
+                case 0:
+                    m_targets.Add(target);  // all done with just add the target InstanceID to the targets list for a segment, District or Park
+                    break;
+                default:
                     {
-                        // Exclude public transport nodes here because we only look for land-based nodes later
-                        if (theNetManager.m_nodes.m_buffer[targetNetNode].Info.m_class.m_layer != ItemClass.Layer.PublicTransport)
+                        BuildingManager theBuildingManager = Singleton<BuildingManager>.instance;
+                        NetManager theNetManager = Singleton<NetManager>.instance;
+                        int loopLimit = 0;
+                        while (target.Building != 0)
                         {
-                            // check all 8 segments coming from this node (I assume some or most are null) - really check all 8 there is no break or continue
-                            for (int index = 0; index < 8; ++index)
+                            // whatever else happens, add the target building to m_targets
+                            m_targets.Add(target);
+                            // lookup the netNode on which the building sits
+                            ushort targetNetNode = theBuildingManager.m_buildings.m_buffer[target.Building].m_netNode;
+                            int loopLimit2 = 0;
+                            while (targetNetNode != 0)
                             {
-                                ushort segment = theNetManager.m_nodes.m_buffer[targetNetNode].GetSegment(index);
-                                // it the segment starts at the target node (and is not null and flags are ok)
-                                if (segment != 0 && theNetManager.m_segments.m_buffer[segment].m_startNode == targetNetNode && (theNetManager.m_segments.m_buffer[segment].m_flags & NetSegment.Flags.Untouchable) != NetSegment.Flags.None)
+                                // I do not understand why PV excludes public transport nodes here. I leave the restriction in for now but will try removing later
+                                if (theNetManager.m_nodes.m_buffer[targetNetNode].Info.m_class.m_layer != ItemClass.Layer.PublicTransport)
                                 {
-                                    InstanceID newID = InstanceID.Empty;
-                                    newID.NetSegment = segment;
-                                    m_targets.Add(newID);
+                                    // check all 8 segments coming from this node (I assume some or most are null) - really check all 8 there is no break or continue
+                                    for (int index = 0; index < 8; ++index)
+                                    {
+                                        ushort segment = theNetManager.m_nodes.m_buffer[targetNetNode].GetSegment(index);
+                                        // it the segment starts at the target node (and is not null and flags are ok)
+                                        if (segment != 0 && theNetManager.m_segments.m_buffer[segment].m_startNode == targetNetNode && (theNetManager.m_segments.m_buffer[segment].m_flags & NetSegment.Flags.Untouchable) != NetSegment.Flags.None)
+                                        {
+                                            InstanceID newID = InstanceID.Empty;
+                                            newID.NetSegment = segment;
+                                            m_targets.Add(newID);
+                                        }
+                                    }
+                                }
+                                targetNetNode = theNetManager.m_nodes.m_buffer[targetNetNode].m_nextBuildingNode;     // loop again for the next node of a big building that has multiple nodes
+                                if (++loopLimit2 > 32768)
+                                {
+                                    CODebugBase<LogChannel>.Error(LogChannel.Core, "Invalid list detected!\n" + System.Environment.StackTrace);
+                                    break;
                                 }
                             }
+                            target.Building = theBuildingManager.m_buildings.m_buffer[target.Building].m_subBuilding;   // outer loop again for any subbuilding of the target building
+                            if (++loopLimit > 49152)
+                            {
+                                CODebugBase<LogChannel>.Error(LogChannel.Core, "Invalid list detected!\n" + System.Environment.StackTrace);
+                                break;
+                            }
                         }
-                        targetNetNode = theNetManager.m_nodes.m_buffer[targetNetNode].m_nextBuildingNode;     // loop again for the next node of a big building that has multiple nodes
-                        if (++loopLimit2 > 32768)
-                        {
-                            CODebugBase<LogChannel>.Error(LogChannel.Core, "Invalid list detected!\n" + System.Environment.StackTrace);
-                            break;
-                        }
-                    }
-                    target.Building = theBuildingManager.m_buildings.m_buffer[target.Building].m_subBuilding;   // outer loop again for any subbuilding of the target building
-                    if (++loopLimit > 49152)
-                    {
-                        CODebugBase<LogChannel>.Error(LogChannel.Core, "Invalid list detected!\n" + System.Environment.StackTrace);
                         break;
                     }
-                }
-            }
-            else
-            {
-                m_targets.Add(target);  // all done with just add the target InstanceID to the targets list for a segment, District or Park
             }
             AddJourneysImpl();
         }
@@ -427,12 +394,12 @@ namespace Journeys
 
             // loop through every citizen path (journey) looking to see if they hit a target in m_targets
             int addedJourneysCount = 0;
-            for (int citant = 0; citant < 65536; ++citant)
+            for (int index1 = 0; index1 < 65536; ++index1)
             {
                 // for all CitizenInstances that have been created but are are not marked as Deleted or WaitingPath
                 //if (index1 == 65535)
                 //    Debug.Log("cim index reached 65535");
-                CitizenInstance thisCitInst = theCitizenManager.m_instances.m_buffer[citant];
+                CitizenInstance thisCitInst = theCitizenManager.m_instances.m_buffer[index1];
                 if ((thisCitInst.m_flags & (CitizenInstance.Flags.Created | CitizenInstance.Flags.Deleted | CitizenInstance.Flags.WaitingPath)) != CitizenInstance.Flags.Created)
                     continue;
                 bool addable = false;
@@ -459,13 +426,12 @@ namespace Journeys
                             NetInfo info = segobject.Info;
                             addable = thePathManager.m_pathUnits.m_buffer[path].m_buildIndex > segobject.m_modifiedIndex
                                 && info != null && info.m_lanes != null && maybematch.Lane < info.m_lanes.Length;
-                            //Debug.Log("addable: " + index1);
                             break;
                         }
                     }
                 }
 
-                InstanceID targetId = thisCitInst.Info.m_citizenAI.GetTargetID((ushort)citant, ref thisCitInst);
+                InstanceID targetId = thisCitInst.Info.m_citizenAI.GetTargetID((ushort)index1, ref thisCitInst);
                 addable |= m_targets.Contains(targetId);
                 if (targetId.Building != 0)
                 {
@@ -489,7 +455,7 @@ namespace Journeys
                 // here, finally, is the add to m_journeys
                 if (addable)
                 {
-                    AddJourney((ushort)citant, path);
+                    AddJourney((ushort)index1, path);
                     //Debug.Log("Just called AddJourney for index " + index1);
                     // PV stops at 100 paths, but this would not be enough for checking all passengers on metros for example
                     if (++addedJourneysCount > m_maxJourneysCount)
@@ -505,74 +471,14 @@ namespace Journeys
 
         private void AddJourney(ushort citizenID, uint pathID)
         {
-            if (!m_journeys.ContainsKey(citizenID))
+            //Debug.Log("about to add new journey");
+            Journey journey = new Journey(citizenID, pathID);
+            //Debug.Log("added new journey with m_steps.Count " + journey.m_steps.Count);
+            if (journey.m_steps.Count > 0)
             {
-                Journey journey = new Journey();
-                lock (journey)
-                    journey.SetJourney(citizenID, pathID);
-                if (journey.m_steps.Count > 0)
-                {
-                    m_journeys.Add(citizenID, journey);
-                    m_selectedCims.Add(citizenID);
-                    m_subselectedCims.Add(citizenID);
-                }
+                m_journeys.Add(citizenID, journey);
+                m_selectedCims.Add(citizenID);
             }
-        }
-
-        private void AddLineJourneys(ushort line)
-        {
-            for (int index1 = 0; index1 < 65536; ++index1)
-            {
-                CitizenManager theCitizenManager = Singleton<CitizenManager>.instance;
-                CitizenInstance thisCitInst = theCitizenManager.m_instances.m_buffer[index1];
-                if ((thisCitInst.m_flags & (CitizenInstance.Flags.Created | CitizenInstance.Flags.Deleted | CitizenInstance.Flags.WaitingPath)) != CitizenInstance.Flags.Created)
-                    continue;
-                uint path = thisCitInst.m_path;
-                //Debug.Log("for index " + index1 + " path is " + path);
-                List<Waypoint> route = JVutils.PathToWaypoints(path, fullroute: false);  // nb if fullroute true, you never see any PT nodes so LineColorPair fails to find any PT
-                if (route != null)
-                {
-                    foreach (Waypoint maybematch in route)
-                    {
-                        LineColorPair lcpair = new LineColorPair(maybematch);
-                        if (lcpair.m_travelmode - 32 == line)
-                        {
-                            AddJourney((ushort)index1, path);
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        private void AddSecondarySelection(InstanceID clickedInstance)
-        {
-            if (clickedInstance == m_lastInstance || clickedInstance == m_lastInstance2 || clickedInstance == null)
-                return;
-            SelectedSegment2 = clickedInstance.NetSegment;
-            if (SelectedSegment2 == 0)
-            {
-                // panel warning
-                return;
-            }
-            m_lastInstance2 = clickedInstance;
-            doneMeshes = false;
-            LineMode = false;
-            m_subselectedCims = theStepManager.GetTarget2Cims(SelectedSegment2);
-            Debug.Log("number of cims from GetTarget2Cims: " + m_subselectedCims.Count);
-            m_subselectedCims2.Clear();
-            foreach (ushort cim in m_subselectedCims)
-                m_subselectedCims2.Add(cim);  // this is used as a restore point at end of lane/line cycle
-            m_targetSteps2 = theStepManager.GetTarget2Steps();  // this is used in FromTo masking
-            Debug.Log("number of steps in from GetTarget2Steps: " + m_targetSteps2.Count);
-            ShowJourneys();
-            SubselectByLaneLineInitiated = false;
-            if (!ModeSecondarySelection)
-            {
-                MakeSecondarySelection = false;
-                Singleton<JourneysPanel>.instance.PanelRefreshMode();
-            }
-            doneMeshes = true;
         }
 
         public void ChangeHeatMap()
@@ -600,54 +506,12 @@ namespace Journeys
             }
         }
 
-        //public void ChangeAbsoluteHeats(bool forwards = true)
-        //{
-        //    if (forwards)
-        //    {
-        //        AbsoluteHeats++;
-        //        if (AbsoluteHeats > 6)
-        //            AbsoluteHeats = 0;
-        //    }
-        //    else
-        //    {
-        //        AbsoluteHeats--;
-        //        if (AbsoluteHeats < 0)
-        //            AbsoluteHeats = 6;
-
-        //    }
-        //    if (AbsoluteHeats > 0)
-        //    {
-        //        Debug.Log("Absolute heat now has red as " + JVutils.cuts[AbsoluteHeats - 1][6]);
-        //    }
-        //    else
-        //    {
-        //        Debug.Log("Absolute heats changed to proportional heats");
-        //    }
-        //    DiscreteHeats = 0;
-        //    lock (buildLock)
-        //    {
-        //        doneMeshes = false;
-        //        theStepManager.ReheatMeshes();
-        //        doneMeshes = true;
-        //    }
-        //}
-
-        public void ChangeMinWidth()
+        public void ChangeAbsoluteHeats()
         {
-            MinHalfwidth++;
-            if (MinHalfwidth > 4)
-                MinHalfwidth = 1;
-            Debug.Log("Minimum line halfwidth changed to " + MinHalfwidth);
-            lock (buildLock)
-            {
-                doneMeshes = false;
-                theStepManager.ReheatMeshes();
-                doneMeshes = true;
-            }
-        }
-
-        public void CallReheat()
-        {
+            AbsoluteHeats++;
+            if (AbsoluteHeats > 6)
+                AbsoluteHeats = 0;
+            DiscreteHeats = 0;
             lock (buildLock)
             {
                 doneMeshes = false;
@@ -662,7 +526,6 @@ namespace Journeys
             {
                 doneMeshes = false;
                 HeatOnlyAsSelected = !HeatOnlyAsSelected;
-                Debug.Log("Toggled heat-only-as-selected to " + HeatOnlyAsSelected);
                 theStepManager.ReheatMeshes();
                 doneMeshes = true;
             }
@@ -671,7 +534,6 @@ namespace Journeys
         public void ToggleTransportSteps()
         {
             ShowOnlyTransportSteps = !ShowOnlyTransportSteps;
-            Debug.Log("Show only transport steps toggled to " + ShowOnlyTransportSteps);
             ByStepInitiated = false;
             ByLaneInitiated = false;
         }
@@ -679,37 +541,26 @@ namespace Journeys
         public void ToggleShowPTstretches()
         {
             OnlyPTstretches = !OnlyPTstretches;
-            Debug.Log("Only PT stretches toggled to " + OnlyPTstretches);
             ShowJourneys();
         }
-
-
-        // In order for this to work immediately (rather than only at next next new selection)
-        // it's necessary to go right back and recalculate each journey (to catch them while they are PT aware)
-        // it's easiest and I think most efficient to call SimulationStep although it is redundant to
-        // recalculate target hits we do need to go back far enough for the raw paths to be there
-        public void ToggleShowPTstops()  
+        public void ToggleShowPTstops()
         {
             ShowPTStops = !ShowPTStops;
-            Debug.Log("Show PT Stops toggled to " + ShowPTStops);
-            RefreshJourneys = true;
-            SimulationStep(0);
-            RefreshJourneys = false;
+            Debug.Log("ShowPTStops toggled to " + ShowPTStops);
+            ShowJourneys();
         }
 
         public void ToggleShowBlended()
         {
             ShowBlended = !ShowBlended;
-            Debug.Log("Blended lines toggled to " + ShowBlended);
             theStepManager.ReheatMeshes();
         }
 
-        // this function makes no sense for line selects, so has no equivalent there
         public void SubSelectByLane()
         {
             lock (buildLock)
             {
-                if (SelectedSegment == 0 || LineMode)
+                if (SelectedSegment == 0)
                     return;
                 doneMeshes = false;     // not entirely true but stops RenderJourneys in the meantime
                 if (!ByLaneInitiated)
@@ -744,8 +595,10 @@ namespace Journeys
                                 notAllLanes = false;
                                 break;
                             }
+                            Debug.Log("lane " + CurrentLane + " has vehicleType " + SelectedSegInfo.m_lanes[CurrentLane].m_vehicleType);
                         }
                     }
+                    Debug.Log("JV hit segment selecting lane " + CurrentLane + " (out of " + NumLanes + ")");
                     if (notAllLanes)
                     {
                         m_subselectedCims = theStepManager.GetLaneCims(SelectedSegment, CurrentLane);
@@ -763,235 +616,101 @@ namespace Journeys
 
         public void ShowJourneys()
         {
+            //Debug.Log("Show journey, " + m_journeys.Count + " total journeys");
+            //Debug.Log("Show journey, " + m_subselectedCims.Count + " selected cims/journeys");
+
+
             lock (buildLock)
             {
-                CitizenManager theCitizenManager = Singleton<CitizenManager>.instance;
-                Debug.Log("Selected " + m_journeys.Count + " total journeys");
                 theStepManager.HideAllCims();
-                if (m_subselectedCims.Count == 0)
+                //Debug.Log("m_journeys.Count " + m_journeys.Count + ", m_subtargetSteps.Count " + m_subtargetSteps.Count + ", m_subselectedCims.Count " + m_subselectedCims.Count);
+
+                if (m_journeys.Count == 0)
                     return;
+
                 doneMeshes = false;
-                PTstretchExcluded = 0;
-                SecondaryExcluded = 0;
-                int tourismExcluded = 0;
-                foreach (ushort cim in m_subselectedCims)
+
+                if (FromToFlag == 0 || m_subtargetSteps.Count == 0)
                 {
-                    bool tourist = theCitizenManager.m_instances.m_buffer[cim].Info.m_class.m_service == ItemClass.Service.Tourism;
-                    if (TouristFlag == 0 || (TouristFlag == 1 && !tourist) || (TouristFlag == 2 && tourist))
-                        foreach (ushort stepIdx in MaskPT(MaskFromTo(m_journeys[cim].m_steps, cim)))
-                            theStepManager.GetStep(stepIdx).ShowCitizen(cim);
+                    if (OnlyPTstretches == false)
+                    {
+                        foreach (ushort cim in m_subselectedCims)
+                        {
+                            Journey journey = m_journeys[cim];
+                            foreach (ushort stepIdx in journey.m_steps)
+                                theStepManager.GetStep(stepIdx).ShowCitizen(cim);
+                        }
+                    }
                     else
-                        tourismExcluded++;
+                    {
+                        foreach (ushort cim in m_subselectedCims)
+                        {
+                            Journey journey = m_journeys[cim];
+                        foreach (ushort stepIdx in MaskPT(journey.m_steps))
+                            theStepManager.GetStep(stepIdx).ShowCitizen(cim);
+                        }
+                    }
                 }
-                //JourneysPanel.instance.UpdateSelected(m_journeys.Count);
-                //JourneysPanel.instance.UpdateSubselected(m_subselectedCims.Count - PTstretchExcluded);
-                Singleton<JourneysPanel>.instance.UpdateBothSelected(m_journeys.Count, m_subselectedCims.Count - tourismExcluded - SecondaryExcluded - PTstretchExcluded);
-                Debug.Log("Subselected " + (m_subselectedCims.Count - tourismExcluded - SecondaryExcluded - PTstretchExcluded) + " journeys");
-                theStepManager.ReheatMeshes();
+                else
+                {
+                    if (!OnlyPTstretches)
+                    {
+                        foreach (ushort cim in m_subselectedCims)
+                        {
+                            Journey journey = m_journeys[cim];
+                            foreach (ushort stepIdx in MaskFromTo(journey.m_steps))
+                                theStepManager.GetStep(stepIdx).ShowCitizen(cim);
+                        }
+                    }
+                    else
+                    {
+                        foreach (ushort cim in m_subselectedCims)
+                        {
+                            Journey journey = m_journeys[cim];
+                            foreach (ushort stepIdx in MaskPT(MaskFromTo(journey.m_steps)))
+                                theStepManager.GetStep(stepIdx).ShowCitizen(cim);
+                        }
+                    }
+                }
+
+                theStepManager.CalculateMeshes();
                 doneMeshes = true;
             }
         }
 
-
-        //if (FromToFlag == 0 )
-        //{
-        //    if (OnlyPTstretches == false)
-        //    {
-        //        foreach (ushort cim in m_subselectedCims)
-        //        {
-        //            Journey journey = m_journeys[cim];
-        //            foreach (ushort stepIdx in journey.m_steps)
-        //                theStepManager.GetStep(stepIdx).ShowCitizen(cim);
-        //        }
-        //    }
-        //    else
-        //    {
-        //        foreach (ushort cim in m_subselectedCims)
-        //        {
-        //            Journey journey = m_journeys[cim];
-        //            foreach (ushort stepIdx in MaskPT(journey.m_steps))
-        //                theStepManager.GetStep(stepIdx).ShowCitizen(cim);
-        //        }
-        //    }
-        //}
-        //else
-        //{
-        //    if (!OnlyPTstretches)
-        //    {
-        //        foreach (ushort cim in m_subselectedCims)
-        //        {
-        //            Journey journey = m_journeys[cim];
-        //            foreach (ushort stepIdx in MaskFromTo(journey.m_steps, cim))
-        //                theStepManager.GetStep(stepIdx).ShowCitizen(cim);
-        //        }
-        //    }
-        //    else
-        //    {
-        //        foreach (ushort cim in m_subselectedCims)
-        //        {
-        //            Journey journey = m_journeys[cim];
-        //            foreach (ushort stepIdx in MaskPT(MaskFromTo(journey.m_steps, cim)))
-        //                theStepManager.GetStep(stepIdx).ShowCitizen(cim);
-        //        }
-        //    }
-        //}
-
-
-        //private List<ushort> MaskFromTo(List<ushort> stepList, ushort cim)
-        //{
-        //    if (LineMode)
-        //    {
-        //        if (FromToFlag == 1)
-        //        {
-        //            for (int idx = 0; idx < stepList.Count; idx++)
-        //                if (theStepManager.GetStep(stepList[idx]).HasOnLine(cim, SelectedLine))
-        //                    return stepList.GetRange(idx, stepList.Count - idx);
-        //        }
-        //        else if (FromToFlag == 2)
-        //        {
-        //            for (int idx = 0; idx < stepList.Count; idx++)
-        //            {
-        //                if (theStepManager.GetStep(stepList[idx]).HasOnLine(cim, SelectedLine))
-        //                {
-        //                    // keep looking until we hit a non-target step (so multiple target steps will be INcluded in selection)
-        //                    for (int jdx = idx + 1; jdx < stepList.Count; jdx++)
-        //                    {
-        //                        if (theStepManager.GetStep(stepList[jdx]).HasOnLine(cim, SelectedLine))
-        //                        {
-        //                            idx++;
-        //                            continue;
-        //                        }
-        //                        break;
-        //                    }
-        //                    return stepList.GetRange(0, idx + 1);
-        //                }
-        //            }
-        //        }
-        //        else
-        //        {
-        //            return stepList;
-        //        }
-        //        return new List<ushort>(); // this should never occur
-        //    }
-        //    else
-        //    {
-        //        if (FromToFlag == 1)
-        //        {
-        //            for (int idx = 0; idx < stepList.Count; idx++)
-        //                if (m_subtargetSteps.Contains(stepList[idx]))
-        //                    return stepList.GetRange(idx, stepList.Count - idx);
-        //        }
-        //        else if (FromToFlag == 2)
-        //        {
-        //            for (int idx = 0; idx < stepList.Count; idx++)
-        //            {
-        //                if (m_subtargetSteps.Contains(stepList[idx]))
-        //                {
-        //                    // keep looking until we hit a non-target step (so multiple target steps will be INcluded in selection)
-        //                    for (int jdx = idx + 1; jdx < stepList.Count; jdx++)
-        //                    {
-        //                        if (m_subtargetSteps.Contains(stepList[jdx]))
-        //                        {
-        //                            idx++;
-        //                            continue;
-        //                        }
-        //                        break;
-        //                    }
-        //                    return stepList.GetRange(0, idx + 1);
-        //                }
-        //            }
-        //        }
-        //        else
-        //        {
-        //            return stepList;
-        //        }
-        //        return new List<ushort>(); // this can occur for eg m_subtargetSteps is empty for some reason
-        //    }
-        //}
-
-        // changed so does NOT include the target steps except the first encountered
-        private List<ushort> MaskFromTo(List<ushort> stepList, ushort cim)
+        private List<ushort> MaskFromTo(List<ushort> stepList)
         {
-            if (stepList.Count == 0)
-                return stepList;
-            //if (LineMode)
-            //{
-            //    if (FromToFlag == 1)
-            //    {
-            //        for (int idx = stepList.Count - 1; idx >= 0 ; idx--)
-            //            if (theStepManager.GetStep(stepList[idx]).HasOnLine(cim, SelectedLine))
-            //                return stepList.GetRange(idx, stepList.Count - idx);
-            //    }
-            //    else if (FromToFlag == 2)
-            //    {
-            //        for (int idx = 0; idx < stepList.Count; idx++)
-            //            if (theStepManager.GetStep(stepList[idx]).HasOnLine(cim, SelectedLine))
-            //                return stepList.GetRange(0, idx + 1);
-            //    }
-            //    else
-            //    {
-            //        return stepList;
-            //    }
-            //    return new List<ushort>(); // this should never occur
-            //}
-            if (SelectedSegment2 != 0)
+            if (FromToFlag == 1)
             {
-                if (FromToFlag == 0)
+                for (int idx = 0; idx < stepList.Count; idx++)
+                    if (m_subtargetSteps.Contains(stepList[idx]))
+                        return stepList.GetRange(idx, stepList.Count - idx);
+            }
+            else if (FromToFlag == 2)
+            {
+                for (int idx = 0; idx < stepList.Count; idx++)
                 {
-                    return stepList;
-                }
-                else
-                {
-                    for (int idx = 0; idx < stepList.Count; idx++)
+                    if (m_subtargetSteps.Contains(stepList[idx]))
                     {
-                        if (m_subtargetSteps.Contains(stepList[idx]))  // if we hit A first
+                        // keep looking until we hit a non-target step (so multiple target steps will be INcluded in selection)
+                        for (int jdx = idx + 1; jdx < stepList.Count; jdx++)
                         {
-                            if (FromToFlag == 1)
+                            if (m_subtargetSteps.Contains(stepList[jdx]))
                             {
-                                return stepList;
+                                idx++;
+                                continue;
                             }
-                            else
-                            {
-                                SecondaryExcluded++;
-                                return new List<ushort>();
-                            }
+                            break;
                         }
-                        else if (m_targetSteps2.Contains(stepList[idx]))
-                        {
-                            if (FromToFlag == 2)
-                            {
-                                return stepList;
-                            }
-                            else
-                            {
-                                SecondaryExcluded++;
-                                return new List<ushort>();
-                            }
-                        }
+                        return stepList.GetRange(0, idx + 1);
                     }
                 }
-                return new List<ushort>();      // this can occur for eg m_subtargetSteps is empty for some reason
             }
             else
             {
-                if (FromToFlag == 1)
-                {
-                    for (int idx = stepList.Count - 1; idx >= 0; idx--)
-                        if (m_subtargetSteps.Contains(stepList[idx]))
-                            return stepList.GetRange(idx, stepList.Count - idx);
-                }
-                else if (FromToFlag == 2)
-                {
-                    for (int idx = 0; idx < stepList.Count; idx++)
-                        if (m_subtargetSteps.Contains(stepList[idx]))
-                            return stepList.GetRange(0, idx + 1);
-                }
-                else
-                {
-                    return stepList;
-                }
-                return new List<ushort>(); // this can occur for eg m_subtargetSteps is empty for some reason
+                return stepList;
             }
+            return new List<ushort>(); // this can occur for To cases, for vehicle selections, falling through because the cim path position is (wrongly) in advance of the vehicle
         }
 
         private List<ushort> MaskPT(List<ushort> stepList)
@@ -1019,8 +738,6 @@ namespace Journeys
                     }
                 }
             }
-            if (!caughtPT)
-                PTstretchExcluded++;
             return retList;
         }
 
@@ -1034,13 +751,10 @@ namespace Journeys
             ShowJourneys();
         }
 
-        // this function makes no sense for line selects, so has no equivalent there
         public void SubselectByLaneLine(bool forwards = true)
         {
             lock (buildLock)
             {
-                if (LineMode || m_targetSteps.Count == 0)
-                    return;
                 doneMeshes = false;     // not entirely true but stops RenderJourneys in the meantime
                 if (!SubselectByLaneLineInitiated)
                 {
@@ -1054,10 +768,9 @@ namespace Journeys
             }
         }
 
-        // this function makes no sense for line selects, so has no equivalent there
         public void SubSelectByStep()
         {
-            if (m_targetSteps.Count == 0 || LineMode)
+            if (m_targetSteps.Count == 0)
                 return;
             lock (buildLock)
             {
@@ -1079,6 +792,7 @@ namespace Journeys
 
                     if (m_stepsList.Count == 0)
                     {
+                        Debug.Log("stepsList.Count is zero; targetSteps.Count is " + m_targetSteps.Count);
                         theStepManager.HideAllCims();
                         theStepManager.CalculateMeshes();
                         return;
@@ -1183,6 +897,7 @@ namespace Journeys
                     if ((thisCitInst.m_flags & (CitizenInstance.Flags.Created | CitizenInstance.Flags.Deleted | CitizenInstance.Flags.WaitingPath)) != CitizenInstance.Flags.Created)
                         continue;
                     uint path = thisCitInst.m_path;
+                    Debug.Log("for index " + citizen + " path is " + path + " with m_showAllCars = " + m_showAllCars);
                     if (path == 0)
                     {
                         if (m_showAllCars)
@@ -1201,9 +916,7 @@ namespace Journeys
                         }
                     }
                     ushort ushcitizen = (ushort)citizen;
-                    Journey journey = new Journey();
-                    lock (journey)
-                        journey.SetJourney(ushcitizen, path);
+                    Journey journey = new Journey(ushcitizen, path);
                     if (journey.m_steps.Count > 0)
                     {
                         m_journeys.Add(ushcitizen, journey);
@@ -1213,17 +926,10 @@ namespace Journeys
 
                 }
                 FromToFlag = 0;
-                OnlyPTstretches = false;
-                TouristFlag = 0;
                 if (theStepManager.StepCount <= 0)
-                    Debug.Log("all journeys finds stepcount " + theStepManager.StepCount);  // this should never happen!
+                    Debug.Log("all journeys finds stepcount " + theStepManager.StepCount);
                 if (theStepManager.StepCount > 0)
-                {
-                    Debug.Log("Showing All Journeys - there are " + m_journeys.Count);
                     theStepManager.CalculateMeshes();
-                }
-                Singleton<JourneysPanel>.instance.UpdateBothSelected(m_selectedCims.Count, m_subselectedCims.Count);
-
                 doneMeshes = true;
             }
         }
@@ -1277,20 +983,19 @@ namespace Journeys
 
         public void WipeSlate()
         {
-            lock (wipeLock)
-            {
-                theStepManager.WipeSlate();
-                lock (m_journeys)
-                    m_journeys.Clear();
-                m_targets.Clear();
-                m_selectedCims.Clear();
-                m_subselectedCims.Clear();
-                m_targetSteps.Clear();
-                m_targetSteps2.Clear();
-                m_subtargetSteps.Clear();
-                ByLaneInitiated = false;
-                ByStepInitiated = false;
-            }
+            Debug.Log("JV: called JV.WipeSlate");
+            theStepManager.WipeSlate();
+            Debug.Log("JV: done call to theStepManager.WipeSlate");
+            m_journeys.Clear();
+            m_targets.Clear();
+            m_selectedCims.Clear();
+            m_targetSteps.Clear();  
+            m_subtargetSteps.Clear();
+            ByLaneInitiated = false;
+            ByStepInitiated = false;
+            ByJourneyInitiated = false;
+            SubselectByLaneLineInitiated = false;
+        Debug.Log("JV: finished JV.WipeSlate");
         }
 
         // network manager insists on calling this, so it must exist. But it's only called on quitting the PV

@@ -28,19 +28,22 @@ namespace Journeys
         public ushort m_id;
         public List<ushort> m_steps;  // the journey encapsulated as a list of its JourneySteps (as reference indices to the JourneyStepMgr dictionary of JourneySteps)
 
-        public Journey(ushort citizenID)
+        public Journey()
         {
-            if (citizenID == 0)
+            m_id = 0;
+            m_steps = new List<ushort>();
+        }
+
+        public void SetJourney(ushort citizenID, uint pathID)
+        {
+            if (citizenID == 0 || pathID == 0)
                 return;
             m_id = citizenID;
-            m_steps = new List<ushort>();
-            uint pathID = Singleton<CitizenManager>.instance.m_instances.m_buffer[citizenID].m_path;
-            if (pathID == 0)
-                return;
+            //m_steps = new List<ushort>();
             // here we go with the journey calculation itself
             JourneyVisualizer theJourneyVisualizer = Singleton<JourneyVisualizer>.instance;
             JourneyStepMgr theStepManager = theJourneyVisualizer.theStepManager;
-            List<Waypoint> itinerary = theJourneyVisualizer.PathToWaypoints(pathID);
+            List<Waypoint> itinerary = JVutils.PathToWaypoints(pathID);
             if (itinerary == null || itinerary.Count < 2)
                 return;
             List<Waypoint> route = new List<Waypoint>(); // working list of waypoints for each step
@@ -52,6 +55,7 @@ namespace Journeys
             LineColorPair lineColorB;
             bool onlandB = true;
             bool firstStep = true;
+            bool showPTstops = theJourneyVisualizer.ShowPTStops;
 
             int itinIdx = 0;
             int itinLast = itinerary.Count - 1;
@@ -74,50 +78,55 @@ namespace Journeys
                 }
                 pointB = itinerary[++itinIdx];
                 lineColorB = new LineColorPair(pointB);
-                onlandB = lineColorB.m_travelmode < 32;
-                if (onlandB)
+                if (lineColorB.m_travelmode == 2)
                 {
-                    route.Add(pointA);
-                    route.Add(pointB);
-                    m_steps.Add(theStepManager.Augment(route, m_id, lineColorB, itinIdx == itinLast));
-                    route.Clear();
-                }
-                else
-                {
-                    landroute = theJourneyVisualizer.PathToWaypoints(Singleton<NetManager>.instance.m_segments.m_buffer[pointB.Segment].m_path);
-                    if (landroute == null || landroute.Count < 2)
+                    uint cit = Singleton<CitizenManager>.instance.m_instances.m_buffer[citizenID].m_citizen;
+                    ushort vehicle = Singleton<CitizenManager>.instance.m_citizens.m_buffer[cit].m_vehicle;
+                    if (Singleton<VehicleManager>.instance.m_vehicles.m_buffer[vehicle].Info.m_vehicleType == VehicleInfo.VehicleType.Bicycle)
                     {
-                        // connect with a straight line in the event of a landroute failure
+                        lineColorB.m_travelmode = 3;
+                        lineColorB.m_lineColor = JVutils.m_travelModeColors[3];
+                    }
+                } 
+                onlandB = lineColorB.m_travelmode < 32;
+                lock (m_steps)  // this is vital because Augment goes off in its own thread and multiple simultaneous calls before the first has finished causes havoc
+                {
+                    if (onlandB)
+                    {
                         route.Add(pointA);
                         route.Add(pointB);
-                        m_steps.Add(theStepManager.Augment(route, m_id, lineColorB, itinIdx == itinLast));
+                        m_steps.AddRange(theStepManager.Augment(route, m_id, lineColorB, endJourney: itinIdx == itinLast));
                         route.Clear();
-                        pointA = pointB;
-                        onlandA = false;
                     }
                     else
                     {
-                        if (onlandA)
+                        landroute = JVutils.PathToWaypoints(Singleton<NetManager>.instance.m_segments.m_buffer[pointB.Segment].m_path);
+                        if (landroute == null || landroute.Count < 2)
                         {
+                            // connect with a straight line in the event of a landroute failure
                             route.Add(pointA);
-                            route.Add(landroute[0]);
-                            m_steps.Add(theStepManager.Augment(route, m_id, lineColorB, itinIdx == itinLast));
+                            route.Add(pointB);
+                            m_steps.AddRange(theStepManager.Augment(route, m_id, lineColorB, endJourney: itinIdx == itinLast));
                             route.Clear();
+                            pointA = pointB;
+                            onlandA = false;
                         }
-                        m_steps.Add(theStepManager.Augment(landroute, m_id, lineColorB, itinIdx == itinLast));
-                        pointA = landroute[landroute.Count - 1];
-                        onlandA = false;
+                        else
+                        {
+                            if (onlandA)
+                            {
+                                route.Add(pointA);
+                                route.Add(landroute[0]);
+                                m_steps.AddRange(theStepManager.Augment(route, m_id, lineColorB, endJourney: showPTstops || itinIdx == itinLast));
+                                route.Clear();
+                            }
+                            m_steps.AddRange(theStepManager.Augment(landroute, m_id, lineColorB, endJourney: showPTstops || itinIdx == itinLast));
+                            pointA = landroute[landroute.Count - 1];
+                            onlandA = false;
+                        }
                     }
                 }
             }
-            //Debug.Log("Exiting SetFromPath with journey as follows");
-            //this.Dprint();
-            //string str = "";
-            //foreach (ushort i in m_steps)
-            //{
-            //    str = str + i + ", ";
-            //}
-            //Debug.Log("m_steps for cim " + m_id + "constructed as: " + str);
         }
     }
 
@@ -148,8 +157,11 @@ namespace Journeys
                         m_lineColor = JVutils.m_travelModeColors[2];
                         break;
                     case NetInfo.LaneType.PublicTransport:
-                        int line = theNetManager.m_nodes.m_buffer[netSegment.m_startNode].m_transportLine;
-                        m_lineColor = line == 0 ? Color.black : theTransportManager.m_lines.m_buffer[line].GetColor();
+                        ushort line = theNetManager.m_nodes.m_buffer[netSegment.m_startNode].m_transportLine;
+                        //TransportLine tline = theTransportManager.m_lines.m_buffer[line];
+                        //Color color = (tline.m_flags & TransportLine.Flags.CustomColor) == TransportLine.Flags.None ? theTransportManager.m_properties.m_transportColors[(int)tline.Info.m_transportType] : (Color)tline.m_color;
+                        //m_lineColor = line == 0 ? Color.black : color; // I used to use .GetColor() but for line selections that can catch it while it is flashing
+                        m_lineColor = line == 0 ? Color.black : theTransportManager.GetLineColor(line); // I used to use .GetColor() but for line selections that can catch it while it is flashing
                         m_travelmode = 32 + line;
                         break;
                     case NetInfo.LaneType.Vehicle:
