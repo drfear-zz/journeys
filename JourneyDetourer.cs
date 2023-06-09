@@ -1,16 +1,5 @@
-﻿using ColossalFramework;
-using ColossalFramework.Math;
-using ColossalFramework.PlatformServices;
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using ColossalFramework.UI;
-using UnityEngine;
-using Journeys.RedirectionFramework;
+﻿using UnityEngine;
 using Journeys.RedirectionFramework.Attributes;
-using Journeys.RedirectionFramework.Extensions;
-using System.Linq;
-using System.Runtime.InteropServices;
 
 
 
@@ -50,13 +39,5 @@ namespace Journeys
         {
             return JourneyVisualizer.instance.IsPathVisible(id);
         }
-
-        //[RedirectReverse]
-        //private void DestroyPaths()
-        //{
-        //    Debug.LogError("JD destroy paths not redirected!!");
-        //}
-
-
     }
 }

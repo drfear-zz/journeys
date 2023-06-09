@@ -10,6 +10,7 @@ namespace Journeys
 {
     public static class JVutils
     {
+
         public static Dictionary<int, Color> m_travelModeColors;
         static JVutils()
         {
@@ -46,8 +47,8 @@ namespace Journeys
                 Debug.Log("JV Error: createmesh called with empty route");
                 return null;
             }
-            TerrainManager theTerrainManager = Singleton<TerrainManager>.instance;
 
+            TerrainManager theTerrainManager = Singleton<TerrainManager>.instance;
             // I do not really know what requireSurfaceLine is for, I have never seen it set and it always seems to work if set to false
             // I have left the mechanism in here intact in case I ever find it should not always be false for my use cases
             bool requireSurfaceLine = false;
@@ -126,23 +127,6 @@ namespace Journeys
                     meshDataArray[num2++] = data[index].m_meshData;
                 }
             }
-            //// now I pass directly to Mesh[] (formerly done in UpdateMesh step, if m_meshData was not null, then leaving it null)
-            //int meshDataArrayLength = meshDataArray.Length;
-            //Mesh [] newmesh = new Mesh[meshDataArrayLength];
-            //for (int index = 0; index < meshDataArrayLength; ++index)
-            //{
-            //    newmesh[index] = new Mesh
-            //    {
-            //        vertices = meshDataArray[index].m_vertices,
-            //        normals = meshDataArray[index].m_normals,
-            //        tangents = meshDataArray[index].m_tangents,
-            //        uv = meshDataArray[index].m_uvs,
-            //        uv2 = meshDataArray[index].m_uvs2,
-            //        colors32 = meshDataArray[index].m_colors,
-            //        triangles = meshDataArray[index].m_triangles,
-            //        bounds = meshDataArray[index].m_bounds
-            //    };
-            //}
             return meshDataArray;
         }
 
@@ -207,68 +191,6 @@ namespace Journeys
                 }
             }
             return true;
-        }
-
-        // Note: for all that this is called "turns corner", it in fact splits at any junction, including when the path is straight over the junction
-        // it also splits steps into two if there is a PT stop (on a different line to this journey, else it would have a waypoint at the stop anyway)
-        public static bool TurnsCorner(Waypoint wpointA, Waypoint wpointB, out Waypoint pointBprime)
-        {
-            pointBprime = null;
-            if (wpointA.Segment == wpointB.Segment)
-                return false;
-            NetManager theNetManager = Singleton<NetManager>.instance;
-            Vector3 gridrefA = theNetManager.m_lanes.m_buffer[GetLaneID(wpointA)].CalculatePosition(wpointA.Offset / 255);
-            uint laneIDB = GetLaneID(wpointB);
-            NetLane laneB = theNetManager.m_lanes.m_buffer[laneIDB];
-            Vector3 gridrefB1 = laneB.CalculatePosition(0);
-            Vector3 gridrefB2 = laneB.CalculatePosition(1);
-            float distanceAB1 = Vector3.Distance(gridrefA, gridrefB1);
-            float distanceAB2 = Vector3.Distance(gridrefA, gridrefB2);
-            if (distanceAB1 > distanceAB2 && distanceAB2 > 1)
-            {
-                pointBprime = new Waypoint(wpointB.Segment, wpointB.Lane, 255);
-                return true;
-            }
-            else if (distanceAB2 > distanceAB1 && distanceAB1 > 1)
-            {
-                pointBprime = new Waypoint(wpointB.Segment, wpointB.Lane, 0);
-                return true;
-            }
-            return false;
-        }
-
-        public static bool PassesStop(Waypoint wpointA, Waypoint wpointB, out Waypoint pointBprime)
-        {
-            pointBprime = null;
-            if (wpointA.Offset != 128 && wpointB.Offset != 128)
-            {
-                NetManager theNetManager = Singleton<NetManager>.instance;
-                // PT stops are not on the PT lanes, they are on pedestrian lanes.  There seems no link built in so do the following,
-                // which assumes if a stop is on the same side of the road as a PT lane, then it's a stop for the PT lane
-                NetInfo.Lane[] thisInfoLanes = theNetManager.m_segments.m_buffer[wpointB.Segment].Info.m_lanes;
-                bool pos = thisInfoLanes[wpointB.Lane].m_position > 0;
-                // look for a lane on same side of the road with a PT stop
-                for (int idx = 0; idx < thisInfoLanes.Length; idx++)
-                {
-                    NetInfo.Lane lane = thisInfoLanes[idx];
-                    bool thispos = lane.m_position > 0;
-                    if (pos == thispos && lane.m_stopType > VehicleInfo.VehicleType.Car)
-                    {
-                        uint laneID = theNetManager.m_segments.m_buffer[wpointB.Segment].m_lanes;
-                        for (int jdx = 0; jdx < idx && laneID != 0U; ++jdx)
-                            laneID = theNetManager.m_lanes.m_buffer[laneID].m_nextLane;
-                        ushort laneNode = theNetManager.m_lanes.m_buffer[laneID].m_nodes;
-                        if (laneNode != 0)
-                        {
-                            pointBprime = new Waypoint(wpointB.Segment, wpointB.Lane, 128);
-                            return true;
-                        }
-                    }
-                }
-                return false;
-            }
-            else
-                return false;
         }
 
         public static void FillRouteSegments(
@@ -460,9 +382,6 @@ namespace Journeys
             return num;
         }
 
-        // save redefining this every time we adjust a mesh
-        public static readonly int[] starts = { 0, 1, 4, 5 };
-
         public static Mesh[] MeshFromData(RenderGroup.MeshData[] data)
         {
             int dataLength = data.Length;
@@ -484,10 +403,35 @@ namespace Journeys
             return newmesh;
         }
 
-        public static void MeshAdjust(Mesh[] meshes, float currentHalfwidth, float newHalfwidth)
+        public static Mesh[] MeshClone(Mesh[] data)
+        {
+            int dataLength = data.Length;
+            Mesh[] newmesh = new Mesh[dataLength];
+            for (int index = 0; index < dataLength; ++index)
+            {
+                newmesh[index] = new Mesh
+                {
+                    vertices = data[index].vertices,
+                    normals = data[index].normals,
+                    tangents = data[index].tangents,
+                    uv = data[index].uv,
+                    uv2 = data[index].uv2,
+                    colors32 = data[index].colors32,
+                    triangles = data[index].triangles,
+                    bounds = data[index].bounds
+                };
+            }
+            return newmesh;
+        }
+
+        // save redefining this every time we adjust a mesh
+        public static readonly int[] starts = { 0, 1, 4, 5 };
+
+        // instead of completely redrawing a mesh[] from scratch, just adjust it for a different halfwidth
+        public static void MeshAdjust(Mesh[] meshes, float currentHalfwidth, float newHalfwidth, bool endNode)
         {
             float delta = currentHalfwidth - newHalfwidth;
-            if (Mathf.Abs(delta) < 0.1)
+            if (Mathf.Abs(delta) < 0.1)         // this makes the function generic, but in fact in JV halfwidths are integer, so delta will be either 0 or >=1
                 return;
             float width = 2 * currentHalfwidth;
             float weight = width - delta;
@@ -495,9 +439,11 @@ namespace Journeys
             {
                 Vector3[] newVertices = mesh.vertices;
                 Vector3[] newNormals = mesh.normals;
-                int eightstop = (mesh.vertexCount / 8) - 1;
-                //Debug.Log("JV: eightstop is " + eightstop);
-                for (int eightIdx = 0; eightIdx < eightstop; ++eightIdx)
+                int eightIdx;
+                int eightstop = (mesh.vertexCount / 8);
+                if (endNode)
+                    eightstop--;
+                for (eightIdx = 0; eightIdx < eightstop; ++eightIdx)
                 {
                     foreach (int idx in starts)
                     {
@@ -511,16 +457,113 @@ namespace Journeys
                         newVertices[absIdx2] = ((delta * v1) + (weight * v2)) / width;
                         newNormals[absIdx1] = n1;
                         newNormals[absIdx2] = n2;
-                        //Debug.Log("vertex " + absIdx1 + " before: " + VDprint(v1) + ", after: " + VDprint(newVertices[absIdx1]));
-                        //Debug.Log("vertex " + absIdx2 + " before: " + VDprint(v2) + ", after: " + VDprint(newVertices[absIdx2]));
                     }
+                }
+                // then for the filled nodes (end journeys)
+                if (endNode)
+                {
+                    int idxOffset = eightstop * 8;
+                    newVertices[idxOffset] = mesh.vertices[idxOffset] + new Vector3(delta, 0, delta);
+                    newNormals[idxOffset] = mesh.normals[idxOffset] - new Vector3(0, 0, delta);
+                    idxOffset++;
+                    newVertices[idxOffset] = mesh.vertices[idxOffset] + new Vector3(delta, 0, delta);
+                    newNormals[idxOffset] = mesh.normals[idxOffset] - new Vector3(0, 0, delta);
+                    idxOffset++;
+                    newVertices[idxOffset] = mesh.vertices[idxOffset] + new Vector3(-delta, 0, delta);
+                    newNormals[idxOffset] = mesh.normals[idxOffset] - new Vector3(0, 0, delta);
+                    idxOffset++;
+                    newVertices[idxOffset] = mesh.vertices[idxOffset] + new Vector3(-delta, 0, delta);
+                    newNormals[idxOffset] = mesh.normals[idxOffset] - new Vector3(0, 0, delta);
+                    idxOffset++;
+                    newVertices[idxOffset] = mesh.vertices[idxOffset] + new Vector3(delta, 0, -delta);
+                    newNormals[idxOffset] = mesh.normals[idxOffset] - new Vector3(0, 0, delta);
+                    idxOffset++;
+                    newVertices[idxOffset] = mesh.vertices[idxOffset] + new Vector3(delta, 0, -delta);
+                    newNormals[idxOffset] = mesh.normals[idxOffset] - new Vector3(0, 0, delta);
+                    idxOffset++;
+                    newVertices[idxOffset] = mesh.vertices[idxOffset] + new Vector3(-delta, 0, -delta);
+                    newNormals[idxOffset] = mesh.normals[idxOffset] - new Vector3(0, 0, delta);
+                    idxOffset++;
+                    newVertices[idxOffset] = mesh.vertices[idxOffset] + new Vector3(-delta, 0, -delta);
+                    newNormals[idxOffset] = mesh.normals[idxOffset] - new Vector3(0, 0, delta);
                 }
                 mesh.vertices = newVertices;
                 mesh.normals = newNormals;
                 mesh.RecalculateBounds();
             }
         }
-        
+
+        // Note: for all that this is called "turns corner", it in fact splits at any junction, including when the path is straight over the junction
+        public static bool TurnsCorner(Waypoint wpointA, Waypoint wpointB, out Waypoint pointBprime)
+        {
+            pointBprime = null;
+            if (wpointA.Segment == wpointB.Segment)
+                return false;
+            NetManager theNetManager = Singleton<NetManager>.instance;
+            Vector3 gridrefA = theNetManager.m_lanes.m_buffer[GetLaneID(wpointA)].CalculatePosition(wpointA.Offset / 255);
+            uint laneIDB = GetLaneID(wpointB);
+            NetLane laneB = theNetManager.m_lanes.m_buffer[laneIDB];
+            Vector3 gridrefB1 = laneB.CalculatePosition(0);
+            Vector3 gridrefB2 = laneB.CalculatePosition(1);
+            float distanceAB1 = Vector3.Distance(gridrefA, gridrefB1);
+            float distanceAB2 = Vector3.Distance(gridrefA, gridrefB2);
+            if (distanceAB1 > distanceAB2 && distanceAB2 > 1)
+            {
+                pointBprime = new Waypoint(wpointB.Segment, wpointB.Lane, 255, wpointB.TravelMode);
+                return pointBprime.Offset != wpointB.Offset;        // sometimes pointB is already the start of its segment, so Bprime and B are the same; then do not double it
+            }
+            else if (distanceAB2 > distanceAB1 && distanceAB1 > 1)
+            {
+                pointBprime = new Waypoint(wpointB.Segment, wpointB.Lane, 0, wpointB.TravelMode);
+                return pointBprime.Offset != wpointB.Offset;
+            }
+            return false;
+        }
+
+        // I removed this functionality because my implementation attempt does not properly identify cases when a PT passes a stop of another line, without itself having a stop there.
+        // (and this is the only case in which it matters at all)
+        // In other words: much, much more trouble than it is worth. You can in any case obtain the info using lane-line cycle.
+        // To identify properly is very complicated, need to take account of positions and directions, whether same lane etc etc
+        // current code looks only at Seg B but that is also not good enough, if route is A-000 to B-000 the stop will be on A (if A is forwards ...)
+        //
+        //public static bool PassesStop(Waypoint wpointA, Waypoint wpointB, out Waypoint pointBprime)
+        //{
+        //    pointBprime = null;
+        //    if (wpointA.Offset != 128 && wpointB.Offset != 128 &&
+        //            ((wpointA.Offset < 128 && wpointB.Offset > 128) || (wpointA.Offset > 128 && wpointB.Offset < 128)))
+        //    {
+        //        NetManager theNetManager = Singleton<NetManager>.instance;
+        //        // PT stops are not on the PT lanes, they are on pedestrian lanes.  There seems no link built in so do the following,
+        //        // which assumes if a stop is on the same side of the road as a PT lane, then it's a stop for the PT lane
+        //        NetInfo.Lane[] thisInfoLanes = theNetManager.m_segments.m_buffer[wpointB.Segment].Info.m_lanes;
+        //        bool pos = thisInfoLanes[wpointB.Lane].m_position > 0;
+        //        // look for a lane on same side of the road with a PT stop
+        //        for (int idx = 0; idx < thisInfoLanes.Length; idx++)
+        //        {
+        //            NetInfo.Lane lane = thisInfoLanes[idx];
+        //            bool thispos = lane.m_position > 0;
+        //            if (pos == thispos && lane.m_stopType > VehicleInfo.VehicleType.Car)
+        //            {
+        //                uint laneID = theNetManager.m_segments.m_buffer[wpointB.Segment].m_lanes;
+        //                for (int jdx = 0; jdx < idx && laneID != 0U; ++jdx)
+        //                    laneID = theNetManager.m_lanes.m_buffer[laneID].m_nextLane;
+        //                ushort laneNode = theNetManager.m_lanes.m_buffer[laneID].m_nodes;
+        //                if (laneNode != 0)
+        //                {
+        //                    pointBprime = new Waypoint(wpointB.Segment, wpointB.Lane, 128);
+        //                    return true;
+        //                }
+        //            }
+        //        }
+        //        return false;
+        //    }
+        //    else
+        //        return false;
+        //}
+
+        // starting values for the linewidth/heatmap categories
+        // cutoffs[0] is never used, it just conveniently makes the array be zero-based while
+        // we in fact always use it as one-based
         public static int[] cutoffs = new int[9] { 0, 2, 4, 8, 16, 32, 64, 128, 128 };
 
         public static int Categorize(int rawheat)
@@ -543,76 +586,19 @@ namespace Journeys
               Color.HSVToRGB(H: 0f, S: 0.9f, V: 0.9f)
             };
 
-        //public static Color ColourHeat(float ratio)
-        //{
-        //    //return Color.HSVToRGB(H: (1f - ratio) / 2, S: 0.5f, V: 1f);
-        //    return Color.HSVToRGB(H: (1f - ratio) * 0.75f, S: 0.9f, V: 0.9f);
-        //}
-        //public static float HalfWidthHeat(float ratio, float discreteCats)
-        //{
-        //    if (discreteCats == 1)
-        //        return 4f;
-        //    else
-        //        return Mathf.Max(Singleton<JourneyVisualizer>.instance.MinHalfwidth, Mathf.Ceil(ratio * 8));                                           // max halfwidth as 8, and discretized to integer
-        //}
-
         public static float HalfWidthHeat(int category)
         {
                 return Mathf.Max(Singleton<JourneyVisualizer>.instance.MinHalfwidth, category);                                           // max halfwidth as 8, and discretized to integer
         }
 
-        //public static float CalculateRatio(float numerator, float denominator = 0, float discreteCats = 0, int absolute = 0)
-        //{
-        //    if (denominator == 0)
-        //        denominator = Singleton<JourneyVisualizer>.instance.m_journeys.Count;
-        //    float ratio = numerator / denominator;
-        //    if (discreteCats > 0)
-        //        ratio = Mathf.Ceil(ratio * discreteCats) / discreteCats;
-        //    else if (absolute > 0)
-        //    {
-        //        int[] cut = cuts[absolute - 1];
-        //        if (numerator <= cut[0])
-        //            ratio = 0.1f;
-        //        else if (numerator <= cut[1])
-        //            ratio = 0.2f;
-        //        else if (numerator <= cut[2])
-        //            ratio = 0.333f;
-        //        else if (numerator <= cut[3])
-        //            ratio = 0.5f;
-        //        else if (numerator <= cut[4])
-        //            ratio = 0.7f;
-        //        else if (numerator <= cut[5])
-        //            ratio = 0.8f;
-        //        else if (numerator <= cut[6])
-        //            ratio = 0.9f;
-        //        else
-        //            ratio = 1f;
-        //    }
-        //    return ratio;
-        //}
-
-        //public static readonly int[][] cuts = new int[6][] {
-        //    new int[7] { 1, 2, 4, 8, 16, 32, 64 },
-        //    new int[7] { 2, 4, 8, 16, 32, 64, 128 },
-        //    new int[7] { 4, 8, 16, 32, 64, 128, 256 },
-        //    new int[7] { 8, 16, 32, 64, 128, 256, 512},
-        //    new int[7] { 16, 32, 64, 128, 256, 512, 1024 },
-        //    new int[7] { 32, 64, 128, 256, 512, 1024, 2056 } };
-
-        // a "fullroute" is every waypoint on the overland journey; it does not distinguish where this substituted for public transport steps
-        // as such it is difficult to process in journey creation - but very good for use with a segment or district selection looking for targets
-        // there is unfortunate redundancy in that when we are looking for segments as targets, we calculate the fullroute, but then
-        // later for those citizens selected, we recalculate the raw list (FYI PV also runs through the paths twice; in fact PV does it a third time
-        // when creating the meshes)
-        public static List<Waypoint> PathToWaypoints(uint pathID, bool fullroute = false)
+        // PathToWaypoints is a quick direct conversion of a path into a list of waypoints, leaving PT segments as PT segments (ie not converting to landroutes)
+        // If you need the landroute (which you most often do) use PathToLandroute (of which this is simply a cut-down version)
+        public static List<Waypoint> PathToWaypoints(uint pathID)
         {
             if (pathID == 0)
                 return null;
             PathManager thePathManager = Singleton<PathManager>.instance;
             NetManager theNetManager = Singleton<NetManager>.instance;
-            byte pathFindFlags = thePathManager.m_pathUnits.m_buffer[pathID].m_pathFindFlags;
-            if ((pathFindFlags & 4) == 0)
-                return null;
             int loopCount = 0;
             List<Waypoint> outlist = new List<Waypoint>();
             while (pathID != 0)
@@ -622,27 +608,86 @@ namespace Journeys
                 for (int positionIndex = 0; positionIndex < positionCount; ++positionIndex)
                 {
                     if (!thisUnit.GetPosition(positionIndex, out PathUnit.Position thisPathPosition))
-                        return null;  // this could happen if a path gets modified in the sim while this loop is calculating
-                    if (fullroute)
+                        return null;  // this happens occaionally. EG if a path is captured half finished, or gets modified in the sim while this loop is calculating (extremely unlikely in JV, much more likely in PV)
+                    outlist.Add(new Waypoint(thisPathPosition));
+                }
+                pathID = thisUnit.m_nextPathUnit;
+                if (++loopCount >= 262144)
+                {
+                    Debug.LogError("JV Error: Invalid path (quasi-infinite loop in pathmanager pathunits) detected!\n" + System.Environment.StackTrace);
+                    return null;
+                }
+            }
+            return outlist;
+        }
+
+        public static List<Waypoint> PathToLandroute(uint pathID, ushort cim)
+        {
+            if (pathID == 0)
+                return null;
+            PathManager thePathManager = Singleton<PathManager>.instance;
+            NetManager theNetManager = Singleton<NetManager>.instance;
+            int loopCount = 0;
+            bool afloat = false;
+            Landroute outroute = new Landroute();
+            while (pathID != 0)
+            {
+                PathUnit thisUnit = thePathManager.m_pathUnits.m_buffer[pathID];
+                int positionCount = thisUnit.m_positionCount;
+                for (int positionIndex = 0; positionIndex < positionCount; ++positionIndex)
+                {
+                    if (!thisUnit.GetPosition(positionIndex, out PathUnit.Position thisPathPosition))
+                        return null;  // this is extremely unlikely to happen, means pathmanager path is corrupt in some way (in PV, with live updates, it could happen that path has been changed during sim updates)
+                    //ushort thisSegment = thisPathPosition.m_segment;
+                    uint landpath = theNetManager.m_segments.m_buffer[thisPathPosition.m_segment].m_path;
+                    if (landpath == 0)
                     {
-                        var landpath = theNetManager.m_segments.m_buffer[thisPathPosition.m_segment].m_path;
-                        if (landpath == 0)
-                            outlist.Add(new Waypoint(thisPathPosition));
-                        else
-                        {
-                            var landroute = PathToWaypoints(landpath);
-                            if (landroute == null)
-                                return null;
-                            if (outlist == null)
-                                outlist = landroute;
-                            else
-                                outlist.AddRange(landroute);
-                        }
+                        outroute.Add(new Waypoint(thisPathPosition, GetNonPTTravelMode(thisPathPosition.m_segment, thisPathPosition.m_lane, cim);
+                        afloat = false;
                     }
                     else
                     {
-                        outlist.Add(new Waypoint(thisPathPosition));
+                        List<Waypoint> landroute = PathToWaypoints(landpath);
+                        // if part of the path is dud, forget the whole thing
+                        if (landroute == null)
+                            return null;
+                        // avoid duplication of the step that ends one landroute but also begins the next
+                        if (afloat)
+                            landroute.RemoveAt(0);
+                        foreach (Waypoint wpoint in landroute)
+                        {
+                            outroute.AddPoint(wpoint, thisSegment);
+                        }
+                        afloat = true;
                     }
+                }
+                pathID = thisUnit.m_nextPathUnit;
+                if (++loopCount >= 262144)
+                {
+                    Debug.LogError("JV Error: Invalid path (quasi-infinite loop in pathmanager pathunits) detected!\n" + System.Environment.StackTrace);
+                    return null;
+                }
+            }
+            return outroute;
+        }
+
+        public static List<ushort> PW2(uint pathID)
+        {
+            if (pathID == 0)
+                return null;
+            PathManager thePathManager = Singleton<PathManager>.instance;
+            NetManager theNetManager = Singleton<NetManager>.instance;
+            int loopCount = 0;
+            List<ushort> outlist = new List<ushort>();
+            while (pathID != 0)
+            {
+                PathUnit thisUnit = thePathManager.m_pathUnits.m_buffer[pathID];
+                int positionCount = thisUnit.m_positionCount;
+                for (int positionIndex = 0; positionIndex < positionCount; ++positionIndex)
+                {
+                    if (!thisUnit.GetPosition(positionIndex, out PathUnit.Position thisPathPosition))
+                        return null;  // this could happen if a path gets modified in the sim while this loop is calculating (extremely unlikely in JV, much more likely in PV)
+                    outlist.Add(thisPathPosition.m_segment);
                 }
                 pathID = thisUnit.m_nextPathUnit;
                 if (++loopCount >= 262144)
@@ -655,14 +700,190 @@ namespace Journeys
         }
 
 
+        public static List<ushort> PL2(uint pathID)
+        {
+            if (pathID == 0)
+                return null;
+            PathManager thePathManager = Singleton<PathManager>.instance;
+            NetManager theNetManager = Singleton<NetManager>.instance;
+            int loopCount = 0;
+            bool afloat = false;
+            List<ushort> outroute = new List<ushort>();
+            while (pathID != 0)
+            {
+                PathUnit thisUnit = thePathManager.m_pathUnits.m_buffer[pathID];
+                int positionCount = thisUnit.m_positionCount;
+                for (int positionIndex = 0; positionIndex < positionCount; ++positionIndex)
+                {
+                    if (!thisUnit.GetPosition(positionIndex, out PathUnit.Position thisPathPosition))
+                        return null;  // this could happen if a path gets modified in the sim while this loop is calculating
+                    ushort thisSegment = thisPathPosition.m_segment;
+                    uint landpath = theNetManager.m_segments.m_buffer[thisSegment].m_path;
+                    if (landpath == 0)
+                    {
+                        outroute.Add(thisSegment);
+                        afloat = false;
+                    }
+                    else
+                    {
+                        List<ushort> landroute = PW2(landpath);
+                        // if part of the path is dud, forget the whole thing
+                        if (landroute == null)
+                            return null;
+                        // avoid duplication of the step that ends one landroute but also begins the next
+                        if (afloat)
+                            landroute.RemoveAt(0);
+                        foreach (ushort wpoint in landroute)
+                        {
+                            outroute.Add(thisSegment);
+                        }
+                        afloat = true;
+                    }
+                }
+                pathID = thisUnit.m_nextPathUnit;
+                if (++loopCount >= 262144)
+                {
+                    Debug.LogError("JV Error: Invalid path (quasi-infinite loop in pathmanager pathunits) detected!\n" + System.Environment.StackTrace);
+                    return null;
+                }
+            }
+            return outroute;
+        }
 
         public static string VDprint(Vector3 _vector)
         {
             return $"({_vector.x:0.0#######}, {_vector.y:0.0#######}, {_vector.z:0.0#######})";
         }
+
+        // code for drawing building overlays is copied and adapted (a tiny bit - simplified color to one parameter) from BuldingTools
+        internal static void DrawBuildingOverlay(
+              RenderManager.CameraInfo cameraInfo,
+              ref Building building,
+              Color color)
+        {
+            BuildingInfo info = building.Info;
+            if (info == null)
+                return;
+            if (info.m_circular)
+            {
+                ++Singleton<ToolManager>.instance.m_drawCallData.m_overlayCalls;
+                Singleton<RenderManager>.instance.OverlayEffect.DrawCircle(cameraInfo, color, building.m_position, Mathf.Max(info.m_cellWidth, building.Length) * 8f, building.m_position.y - 100f, building.m_position.y + info.m_size.y + 100.0f, false, false);
+            }
+            else
+            {
+                Vector3 vector3_1 = new Vector3(Mathf.Cos(building.m_angle), 0.0f, Mathf.Sin(building.m_angle));
+                Vector3 vector3_2 = new Vector3(vector3_1.z, 0.0f, -vector3_1.x);
+                vector3_1 *= info.m_cellWidth * 4f;
+                Vector3 vector3_3 = vector3_2 * (building.Length * 4f);
+                Quad3 quad = new Quad3
+                {
+                    a = building.m_position - vector3_1 - vector3_3,
+                    b = building.m_position - vector3_1 + vector3_3,
+                    c = building.m_position + vector3_1 + vector3_3,
+                    d = building.m_position + vector3_1 - vector3_3
+                };
+                ++Singleton<ToolManager>.instance.m_drawCallData.m_overlayCalls;
+                Singleton<RenderManager>.instance.OverlayEffect.DrawQuad(cameraInfo, color, quad, building.m_position.y - 100f, building.m_position.y + info.m_size.y + 100.0f, false, false);
+            }
+        }
+
+        // the following code for drawing the red (and green) selected-segment overlays is stolen directly from TM:PE
+
+        /// <summary>
+        /// similar to NetTool.RenderOverlay()
+        /// but with additional control over alphaBlend.
+        /// </summary>
+        internal static void DrawSegmentOverlay(
+            RenderManager.CameraInfo cameraInfo,
+            ushort segmentId,
+            Color color,
+            bool alphaBlend)
+        {
+            if (segmentId == 0)
+            {
+                return;
+            }
+
+            ref NetSegment segment =
+                ref Singleton<NetManager>.instance.m_segments.m_buffer[segmentId];
+            float width = segment.Info.m_halfWidth;
+
+            NetNode[] nodeBuffer = Singleton<NetManager>.instance.m_nodes.m_buffer;
+
+            bool IsMiddle(ushort nodeId) =>
+                (nodeBuffer[nodeId].m_flags & NetNode.Flags.Middle) != 0;
+
+            Bezier3 bezier;
+            bezier.a = segment.m_startNode.ToNode().GetPositionOnTerrain();
+            bezier.d = segment.m_endNode.ToNode().GetPositionOnTerrain();
+
+            NetSegment.CalculateMiddlePoints(
+                startPos: bezier.a,
+                startDir: segment.m_startDirection,
+                endPos: bezier.d,
+                endDir: segment.m_endDirection,
+                smoothStart: IsMiddle(segment.m_startNode),
+                smoothEnd: IsMiddle(segment.m_endNode),
+                middlePos1: out bezier.b,
+                middlePos2: out bezier.c);
+
+            Singleton<ToolManager>.instance.m_drawCallData.m_overlayCalls++;
+            Singleton<RenderManager>.instance.OverlayEffect.DrawBezier(
+                cameraInfo,
+                color,
+                bezier,
+                size: width * 2f,
+                cutStart: 0,
+                cutEnd: 0,
+                minY: -1f,
+                maxY: 1280f,
+                renderLimits: false,
+                alphaBlend);
+        }
+        internal static Vector3 GetPositionOnTerrain(this ref NetNode node)
+        {
+            Vector3 pos = node.m_position;
+            float terrainY = Singleton<TerrainManager>.instance.SampleDetailHeightSmooth(pos);
+            if (terrainY > pos.y)
+            {
+                pos.y = terrainY;
+            }
+
+            return pos;
+        }
+
+        // embryo code for lane overlay (from TMPE). AFAIK bezier is simply the bezier of the netlane without adjustment
+        ///// <summary>Renders lane overlay.</summary>
+        //internal void RenderOverlay(RenderManager.CameraInfo cameraInfo, Color color, bool enlarge = false, bool renderLimits = false)
+        //{
+        //    float minH = Mathf.Min(Bezier.a.y, Bezier.d.y);
+        //    float maxH = Mathf.Max(Bezier.a.y, Bezier.d.y);
+
+        //    float overdrawHeight = IsUnderground || renderLimits ? 0f : 5f;
+        //    ColossalFramework.Singleton<ToolManager>.instance.m_drawCallData.m_overlayCalls++;
+        //    RenderManager.instance.OverlayEffect.DrawBezier(
+        //        cameraInfo: cameraInfo,
+        //        color: color,
+        //        bezier: Bezier,
+        //        size: enlarge ? Size * 1.41f : Size,
+        //        cutStart: 0,
+        //        cutEnd: 0,
+        //        minY: minH - overdrawHeight,
+        //        maxY: maxH + overdrawHeight,
+        //        renderLimits: IsUnderground || renderLimits,
+        //        alphaBlend: false);
+        //}
+
     }
 
+    public static class NetNodeExtensions
+    {
+        private static NetNode[] _nodeBuffer = Singleton<NetManager>.instance.m_nodes.m_buffer;
 
+        internal static ref NetNode ToNode(this ushort nodeId) => ref _nodeBuffer[nodeId];
+    }
+
+    // the following code is stolen directly from an older version of IPT2
 
     public static class UIUtils
     {

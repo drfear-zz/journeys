@@ -71,9 +71,9 @@
     <Compile Include="Journey.cs" />
     <Compile Include="JourneysLoadingExtension.cs" />
     <Compile Include="JourneysButton.cs" />
+    <Compile Include="JourneysPanel.cs" />
     <Compile Include="JourneyStep.cs" />
     <Compile Include="JourneyStepMgr.cs" />
-    <Compile Include="JourneysToggle.cs" />
     <Compile Include="JourneysMod.cs" />
     <Compile Include="JourneyVisualizer.cs" />
     <Compile Include="JVutils.cs" />
@@ -89,6 +89,7 @@
     <Compile Include="RedirectionFramework\RedirectionUtil.cs" />
     <Compile Include="RedirectionFramework\Redirector.cs" />
     <Compile Include="RedirectionFramework\Tuple.cs" />
+    <Compile Include="Waypoint.cs" />
   </ItemGroup>
   <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSHARP.Targets" />

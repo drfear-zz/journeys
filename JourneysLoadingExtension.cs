@@ -1,11 +1,6 @@
-﻿using ColossalFramework;
-using ColossalFramework.UI;
+﻿using ColossalFramework.UI;
 using ICities;
-using System;
 using UnityEngine;
-using Journeys.RedirectionFramework;
-using Journeys.RedirectionFramework.Attributes;
-using Journeys.RedirectionFramework.Extensions;
 
 
 namespace Journeys
@@ -25,16 +20,9 @@ namespace Journeys
                 {
                     journeysGameObject = new GameObject("JourneysGameObject");
                     journeysGameObject.transform.parent = objectOfType.transform;
-                    journeysGameObject.AddComponent<JourneysToggle>();
                     journeysGameObject.AddComponent<JourneyVisualizer>();
-                    JourneyVisualizer.instance.Init();
-                    //journeysGameObject.AddComponent<JourneyStepMgr>();
-                    //JourneyStepMgr.instance.Init();
-                    Debug.Log("done loading JVisualizer!");
                     journeysGameObject.AddComponent<JourneysPanel>(); // this calls Awake
                     journeysGameObject.AddComponent<JourneysButton>(); // this calls Awake
-                    Debug.Log("done adding panel component");
-                    //Singleton<JourneysButton>.instance.Show();
                 }
                 catch
                 {
