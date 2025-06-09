@@ -79,7 +79,7 @@ that sometimes there seems to be little difference between successive lane selec
 ### Secondary subselection
 Another way to restrict showing journeys only if they go via both A and B is to use a "secondary selection".  First click on the
 Menu button for this, then make the secondary selection on the map.  This selection will be highlighted in green (whereas the primary
-selection is highligheted in red).  You can make a third (or more) secondary selection if you enable the radio button "make a
+selection is highlighted in red).  You can make a third (or more) secondary selection if you enable the radio button "make a
 further secondary selection". There is no theoretical limit.  When there is more than one secondary selection, journeys must go
 through all of them to remain visible.
 
@@ -102,12 +102,24 @@ on same lane" you will add the two (or more) lines as if they were all one line.
 most passengers.)
 
 ### Click through journeys
-Successive clicks on this button cycle through each citizen's individual journey in the current (sub)selection.
+Successive clicks on this button cycle through the individual journeys of each citizen in the current (sub)selection.
 
 ### Show every known journey
-It can be revealing to get a picture of overall public transport use to show all known journeys.  (Do this with restriction to PT stretches
+It can be revealing to get a picture of overall public transport use by showing all known journeys.  (Do this with restriction to PT stretches
 and setting line heat appropriately so you only get red for the very busiest lines.) It can take a second or two to render all
 these journeys.
+
+## Game Issues
+In the simulation, not every journey is taken physically across the network; a significant number of journeys are by teleport. Citizens are
+more likely to teleport from commercial back home than vice versa - therefore you will see up to twice as many journeys _from_ residential
+as _to_ residential. Also the majority of journeys to and from Industry and almost all journeys to and from Offices are by teleport. I mention
+this as not being a bug in this mod, it is an artefact of the simulation.
+
+Another thing you may notice is citizen's extraordinary reluctance to take any part of a journey in the reverse of the overall direction
+of travel.  Thus, they will happily walk 30 blocks forward rather than first walk just 2 blocks back to a convenient metro station.
+
+They will also pretty much avoid a quick metro trip if there is any bus/tram alternative, even if it means changing bus/tram several times and
+taking weeks longer.
 
 
 
