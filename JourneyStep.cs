@@ -30,14 +30,12 @@ namespace Journeys
     // in PathVisualizer or Public Transport views.  To get nice line arrows along the whole journey, you need to calculate the meshes as one 
     // single thing (so as to get currentLength and totalLength and lengthScale right for each part).  My JStep constructor will use length
     // info from a previous step if available, but it can only ever be completely right for a single previous starting point.
-    // Note: this is a big departure from previous versions, where the meshes were stored with the journey.  But that can mean for a full
-    // train step, drawing (and storing) the same mesh 240 times.
 
     // Public transport steps work like this.
     // Take first a step AB where A is on land B is ptrans.  From B's segment.m_path find the land path B1-B2-...B' (B' is not B; B' is a ptrans segment)
     // NOTE: you can tell immediately if waypoint X is a ptrans stop by looking at its segment's m_path: 0 if not ptrans.
     // we need to set JSteps for A-B1 (the tiny step of getting on the tram) and for B1-B' (not actually corresponding to any single game segment, but
-    // these are land waypoints
+    // these are land waypoints).
     // For a journey ABC, so far A-B1 then B1-B', if C is ptrans and waypoint C1 is the same as waypoint B' (same in all 3 components! normally differs only
     // in lane) the the passenger has not got off the tram, this is a continuing journey. It will be on the same line (ie B and C are same line) because C is
     // a ptrans stop on the SAME line as B, if it was a different line, it would have a different segment number (IE: line segments are unique to line, aka
@@ -232,51 +230,52 @@ namespace Journeys
             }
         }
 
-        public void DumpStep(ushort stepID)
-        {
-            string ans = "\nDump of step " + stepID;
-            ans = ans + "\nPointA: seg " + StartStep.Segment + " lane: " + StartStep.Lane + " offset: " + StartStep.Offset;
-            ans = ans + "\nPointB: seg " + EndStep.Segment + " lane: " + EndStep.Lane + " offset: " + EndStep.Offset;
-            List<ushort> cimlist = new List<ushort>();
-            foreach (ushort cim in m_CimLines.Keys)
-                cimlist.Add(cim);
-            ans = ans + "\nNumber of cims: " + cimlist.Count + "\n";
-            ans = ans + "RawHeat: " + RawHeat + "  SubHeat: " + SubHeat + "\n";
-            ans += "List of cims(travelMode): ";
-            foreach (ushort cim in cimlist)
-            {
-                ans = ans + " " + cim + "(" + m_CimLines[cim] + ")";
-            }
-            ans += "\nList of lines (LineHeat, LineSubHeat): ";
-            foreach (int line in m_LineInfos.Keys)
-            {
-                ans = ans + " " + line + "(" + m_LineInfos[line].LineHeat + ", " + m_LineInfos[line].LineSubHeat + ")";
-            }
-            ans += "\nm_heatOrderedLines is: ";
-            for (int idx = 0; idx < m_heatOrderedLines.Count; idx++)
-            {
-                ans += m_heatOrderedLines[idx] + ", ";
-            }
-            ans += "\n";
-            // for debug - this is what happens in Draw
-            List<LineInfo> lineInfos = new List<LineInfo>();
-            if (Singleton<JourneyVisualizer>.instance.ShowBlended)
-            {
-                lineInfos.Add(m_blendedLineInfo);
-            }
-            else
-            {
-                foreach (int lineIndex in m_heatOrderedLines)
-                {
-                    lineInfos.Add(m_LineInfos[lineIndex]);
-                    ans += "Draw line index " + lineIndex + " linesubheat: " + m_LineInfos[lineIndex].LineSubHeat + ", halfwidth " + m_LineInfos[lineIndex].m_halfWidth + ", mesh has length " + m_LineInfos[lineIndex].m_meshes.Length + "\n";
-                }
-            }
-            ans += "routmeshHalfwidth is " + m_routemeshHalfwidth + " routeMeshes length is " + m_RouteMeshes.Length;
-            ans += "\nNeedsMesh: " + NeedsMesh;
-            ans += "\n";
-            Debug.Log(ans);
-        }
+         // for use when debugging - dump contents to debug.log
+        //public void DumpStep(ushort stepID)
+        //{
+        //    string ans = "\nDump of step " + stepID;
+        //    ans = ans + "\nPointA: seg " + StartStep.Segment + " lane: " + StartStep.Lane + " offset: " + StartStep.Offset;
+        //    ans = ans + "\nPointB: seg " + EndStep.Segment + " lane: " + EndStep.Lane + " offset: " + EndStep.Offset;
+        //    List<ushort> cimlist = new List<ushort>();
+        //    foreach (ushort cim in m_CimLines.Keys)
+        //        cimlist.Add(cim);
+        //    ans = ans + "\nNumber of cims: " + cimlist.Count + "\n";
+        //    ans = ans + "RawHeat: " + RawHeat + "  SubHeat: " + SubHeat + "\n";
+        //    ans += "List of cims(travelMode): ";
+        //    foreach (ushort cim in cimlist)
+        //    {
+        //        ans = ans + " " + cim + "(" + m_CimLines[cim] + ")";
+        //    }
+        //    ans += "\nList of lines (LineHeat, LineSubHeat): ";
+        //    foreach (int line in m_LineInfos.Keys)
+        //    {
+        //        ans = ans + " " + line + "(" + m_LineInfos[line].LineHeat + ", " + m_LineInfos[line].LineSubHeat + ")";
+        //    }
+        //    ans += "\nm_heatOrderedLines is: ";
+        //    for (int idx = 0; idx < m_heatOrderedLines.Count; idx++)
+        //    {
+        //        ans += m_heatOrderedLines[idx] + ", ";
+        //    }
+        //    ans += "\n";
+        //    // for debug - this is what happens in Draw
+        //    List<LineInfo> lineInfos = new List<LineInfo>();
+        //    if (Singleton<JourneyVisualizer>.instance.ShowBlended)
+        //    {
+        //        lineInfos.Add(m_blendedLineInfo);
+        //    }
+        //    else
+        //    {
+        //        foreach (int lineIndex in m_heatOrderedLines)
+        //        {
+        //            lineInfos.Add(m_LineInfos[lineIndex]);
+        //            ans += "Draw line index " + lineIndex + " linesubheat: " + m_LineInfos[lineIndex].LineSubHeat + ", halfwidth " + m_LineInfos[lineIndex].m_halfWidth + ", mesh has length " + m_LineInfos[lineIndex].m_meshes.Length + "\n";
+        //        }
+        //    }
+        //    ans += "routmeshHalfwidth is " + m_routemeshHalfwidth + " routeMeshes length is " + m_RouteMeshes.Length;
+        //    ans += "\nNeedsMesh: " + NeedsMesh;
+        //    ans += "\n";
+        //    Debug.Log(ans);
+        //}
 
 
         // DrawTheMeshes is called via the Render entry point rather than through SimulationStep
@@ -327,7 +326,6 @@ namespace Journeys
         }
 
         // the reason the following objects are classes instead of structs is so they can be referred to and directly modified in place within their dictionaries
-        // (because objects are passed by reference while structs are passed by value)
 
         // ******************************* LineInfo subclass ****************************************/
         //

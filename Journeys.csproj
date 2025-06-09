@@ -89,6 +89,7 @@
     <Compile Include="RedirectionFramework\RedirectionUtil.cs" />
     <Compile Include="RedirectionFramework\Redirector.cs" />
     <Compile Include="RedirectionFramework\Tuple.cs" />
+    <Compile Include="Segway.cs" />
     <Compile Include="Waypoint.cs" />
   </ItemGroup>
   <ItemGroup />

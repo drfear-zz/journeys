@@ -509,12 +509,12 @@ namespace Journeys
             float distanceAB2 = Vector3.Distance(gridrefA, gridrefB2);
             if (distanceAB1 > distanceAB2 && distanceAB2 > 1)
             {
-                pointBprime = new Waypoint(wpointB.Segment, wpointB.Lane, 255, wpointB.TravelMode);
+                pointBprime = new Waypoint(wpointB.Segment, wpointB.Lane, 255);
                 return pointBprime.Offset != wpointB.Offset;        // sometimes pointB is already the start of its segment, so Bprime and B are the same; then do not double it
             }
             else if (distanceAB2 > distanceAB1 && distanceAB1 > 1)
             {
-                pointBprime = new Waypoint(wpointB.Segment, wpointB.Lane, 0, wpointB.TravelMode);
+                pointBprime = new Waypoint(wpointB.Segment, wpointB.Lane, 0);
                 return pointBprime.Offset != wpointB.Offset;
             }
             return false;
@@ -598,7 +598,6 @@ namespace Journeys
             if (pathID == 0)
                 return null;
             PathManager thePathManager = Singleton<PathManager>.instance;
-            NetManager theNetManager = Singleton<NetManager>.instance;
             int loopCount = 0;
             List<Waypoint> outlist = new List<Waypoint>();
             while (pathID != 0)
@@ -621,139 +620,90 @@ namespace Journeys
             return outlist;
         }
 
-        public static List<Waypoint> PathToLandroute(uint pathID, ushort cim)
-        {
-            if (pathID == 0)
-                return null;
-            PathManager thePathManager = Singleton<PathManager>.instance;
-            NetManager theNetManager = Singleton<NetManager>.instance;
-            int loopCount = 0;
-            bool afloat = false;
-            Landroute outroute = new Landroute();
-            while (pathID != 0)
-            {
-                PathUnit thisUnit = thePathManager.m_pathUnits.m_buffer[pathID];
-                int positionCount = thisUnit.m_positionCount;
-                for (int positionIndex = 0; positionIndex < positionCount; ++positionIndex)
-                {
-                    if (!thisUnit.GetPosition(positionIndex, out PathUnit.Position thisPathPosition))
-                        return null;  // this is extremely unlikely to happen, means pathmanager path is corrupt in some way (in PV, with live updates, it could happen that path has been changed during sim updates)
-                    //ushort thisSegment = thisPathPosition.m_segment;
-                    uint landpath = theNetManager.m_segments.m_buffer[thisPathPosition.m_segment].m_path;
-                    if (landpath == 0)
-                    {
-                        outroute.Add(new Waypoint(thisPathPosition, GetNonPTTravelMode(thisPathPosition.m_segment, thisPathPosition.m_lane, cim);
-                        afloat = false;
-                    }
-                    else
-                    {
-                        List<Waypoint> landroute = PathToWaypoints(landpath);
-                        // if part of the path is dud, forget the whole thing
-                        if (landroute == null)
-                            return null;
-                        // avoid duplication of the step that ends one landroute but also begins the next
-                        if (afloat)
-                            landroute.RemoveAt(0);
-                        foreach (Waypoint wpoint in landroute)
-                        {
-                            outroute.AddPoint(wpoint, thisSegment);
-                        }
-                        afloat = true;
-                    }
-                }
-                pathID = thisUnit.m_nextPathUnit;
-                if (++loopCount >= 262144)
-                {
-                    Debug.LogError("JV Error: Invalid path (quasi-infinite loop in pathmanager pathunits) detected!\n" + System.Environment.StackTrace);
-                    return null;
-                }
-            }
-            return outroute;
-        }
+        //public static Landroute PathToLandroute(uint pathID)
+        //{
+        //    if (pathID == 0)
+        //        return null;
+        //    PathManager thePathManager = Singleton<PathManager>.instance;
+        //    NetManager theNetManager = Singleton<NetManager>.instance;
+        //    int loopCount = 0;
+        //    bool afloat = false;
+        //    Landroute outroute = new Landroute();
+        //    while (pathID != 0)
+        //    {
+        //        PathUnit thisUnit = thePathManager.m_pathUnits.m_buffer[pathID];
+        //        int positionCount = thisUnit.m_positionCount;
+        //        for (int positionIndex = 0; positionIndex < positionCount; ++positionIndex)
+        //        {
+        //            if (!thisUnit.GetPosition(positionIndex, out PathUnit.Position thisPathPosition))
+        //                return null;  // this is extremely unlikely to happen, means pathmanager path is corrupt in some way (in PV, with live updates, it could happen that path has been changed during sim updates)
+        //            //ushort thisSegment = thisPathPosition.m_segment;
+        //            uint landpath = theNetManager.m_segments.m_buffer[thisPathPosition.m_segment].m_path;
+        //            if (landpath == 0)
+        //            {
+        //                outroute.AddPoint(new Waypoint(thisPathPosition), 0);
+        //                afloat = false;
+        //            }
+        //            else
+        //            {
+        //                List<Waypoint> landroute = PathToWaypoints(landpath);
+        //                // if part of the path is dud, forget the whole thing
+        //                if (landroute == null)
+        //                    return null;
+        //                // avoid duplication of the step that ends one landroute but also begins the next
+        //                if (afloat)
+        //                    landroute.RemoveAt(0);
+        //                foreach (Waypoint wpoint in landroute)
+        //                {
+        //                    outroute.AddPoint(wpoint, thisPathPosition.m_segment);
+        //                }
+        //                afloat = true;
+        //            }
+        //        }
+        //        pathID = thisUnit.m_nextPathUnit;
+        //        if (++loopCount >= 262144)
+        //        {
+        //            Debug.LogError("JV Error: Invalid path (quasi-infinite loop in pathmanager pathunits) detected!\n" + System.Environment.StackTrace);
+        //            return null;
+        //        }
+        //    }
+        //    return outroute;
+        //}
 
-        public static List<ushort> PW2(uint pathID)
-        {
-            if (pathID == 0)
-                return null;
-            PathManager thePathManager = Singleton<PathManager>.instance;
-            NetManager theNetManager = Singleton<NetManager>.instance;
-            int loopCount = 0;
-            List<ushort> outlist = new List<ushort>();
-            while (pathID != 0)
-            {
-                PathUnit thisUnit = thePathManager.m_pathUnits.m_buffer[pathID];
-                int positionCount = thisUnit.m_positionCount;
-                for (int positionIndex = 0; positionIndex < positionCount; ++positionIndex)
-                {
-                    if (!thisUnit.GetPosition(positionIndex, out PathUnit.Position thisPathPosition))
-                        return null;  // this could happen if a path gets modified in the sim while this loop is calculating (extremely unlikely in JV, much more likely in PV)
-                    outlist.Add(thisPathPosition.m_segment);
-                }
-                pathID = thisUnit.m_nextPathUnit;
-                if (++loopCount >= 262144)
-                {
-                    Debug.LogError("JV Error: Invalid path (quasi-infinite loop in pathmanager pathunits) detected!\n" + System.Environment.StackTrace);
-                    return null;
-                }
-            }
-            return outlist;
-        }
+        //public static List<ushort> PW2(uint pathID)
+        //{
+        //    if (pathID == 0)
+        //        return null;
+        //    PathManager thePathManager = Singleton<PathManager>.instance;
+        //    NetManager theNetManager = Singleton<NetManager>.instance;
+        //    int loopCount = 0;
+        //    List<ushort> outlist = new List<ushort>();
+        //    while (pathID != 0)
+        //    {
+        //        PathUnit thisUnit = thePathManager.m_pathUnits.m_buffer[pathID];
+        //        int positionCount = thisUnit.m_positionCount;
+        //        for (int positionIndex = 0; positionIndex < positionCount; ++positionIndex)
+        //        {
+        //            if (!thisUnit.GetPosition(positionIndex, out PathUnit.Position thisPathPosition))
+        //                return null;  // this could happen if a path gets modified in the sim while this loop is calculating (extremely unlikely in JV, much more likely in PV)
+        //            outlist.Add(thisPathPosition.m_segment);
+        //        }
+        //        pathID = thisUnit.m_nextPathUnit;
+        //        if (++loopCount >= 262144)
+        //        {
+        //            Debug.LogError("JV Error: Invalid path (quasi-infinite loop in pathmanager pathunits) detected!\n" + System.Environment.StackTrace);
+        //            return null;
+        //        }
+        //    }
+        //    return outlist;
+        //}
 
 
-        public static List<ushort> PL2(uint pathID)
-        {
-            if (pathID == 0)
-                return null;
-            PathManager thePathManager = Singleton<PathManager>.instance;
-            NetManager theNetManager = Singleton<NetManager>.instance;
-            int loopCount = 0;
-            bool afloat = false;
-            List<ushort> outroute = new List<ushort>();
-            while (pathID != 0)
-            {
-                PathUnit thisUnit = thePathManager.m_pathUnits.m_buffer[pathID];
-                int positionCount = thisUnit.m_positionCount;
-                for (int positionIndex = 0; positionIndex < positionCount; ++positionIndex)
-                {
-                    if (!thisUnit.GetPosition(positionIndex, out PathUnit.Position thisPathPosition))
-                        return null;  // this could happen if a path gets modified in the sim while this loop is calculating
-                    ushort thisSegment = thisPathPosition.m_segment;
-                    uint landpath = theNetManager.m_segments.m_buffer[thisSegment].m_path;
-                    if (landpath == 0)
-                    {
-                        outroute.Add(thisSegment);
-                        afloat = false;
-                    }
-                    else
-                    {
-                        List<ushort> landroute = PW2(landpath);
-                        // if part of the path is dud, forget the whole thing
-                        if (landroute == null)
-                            return null;
-                        // avoid duplication of the step that ends one landroute but also begins the next
-                        if (afloat)
-                            landroute.RemoveAt(0);
-                        foreach (ushort wpoint in landroute)
-                        {
-                            outroute.Add(thisSegment);
-                        }
-                        afloat = true;
-                    }
-                }
-                pathID = thisUnit.m_nextPathUnit;
-                if (++loopCount >= 262144)
-                {
-                    Debug.LogError("JV Error: Invalid path (quasi-infinite loop in pathmanager pathunits) detected!\n" + System.Environment.StackTrace);
-                    return null;
-                }
-            }
-            return outroute;
-        }
 
-        public static string VDprint(Vector3 _vector)
-        {
-            return $"({_vector.x:0.0#######}, {_vector.y:0.0#######}, {_vector.z:0.0#######})";
-        }
+        //public static string VDprint(Vector3 _vector)
+        //{
+        //    return $"({_vector.x:0.0#######}, {_vector.y:0.0#######}, {_vector.z:0.0#######})";
+        //}
 
         // code for drawing building overlays is copied and adapted (a tiny bit - simplified color to one parameter) from BuldingTools
         internal static void DrawBuildingOverlay(
@@ -851,28 +801,6 @@ namespace Journeys
 
             return pos;
         }
-
-        // embryo code for lane overlay (from TMPE). AFAIK bezier is simply the bezier of the netlane without adjustment
-        ///// <summary>Renders lane overlay.</summary>
-        //internal void RenderOverlay(RenderManager.CameraInfo cameraInfo, Color color, bool enlarge = false, bool renderLimits = false)
-        //{
-        //    float minH = Mathf.Min(Bezier.a.y, Bezier.d.y);
-        //    float maxH = Mathf.Max(Bezier.a.y, Bezier.d.y);
-
-        //    float overdrawHeight = IsUnderground || renderLimits ? 0f : 5f;
-        //    ColossalFramework.Singleton<ToolManager>.instance.m_drawCallData.m_overlayCalls++;
-        //    RenderManager.instance.OverlayEffect.DrawBezier(
-        //        cameraInfo: cameraInfo,
-        //        color: color,
-        //        bezier: Bezier,
-        //        size: enlarge ? Size * 1.41f : Size,
-        //        cutStart: 0,
-        //        cutEnd: 0,
-        //        minY: minH - overdrawHeight,
-        //        maxY: maxH + overdrawHeight,
-        //        renderLimits: IsUnderground || renderLimits,
-        //        alphaBlend: false);
-        //}
 
     }
 

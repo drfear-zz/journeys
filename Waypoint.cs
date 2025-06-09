@@ -8,46 +8,53 @@ using UnityEngine;
 namespace Journeys
 {
 
-    // A Waypoint is a network-based location (ie based on segment and position within the segment, rather than being
-    // a vector gridReference. A JourneyStep is the journey from one Waypoint to another (ie has a start and end Waypoint).
-    // It may be noted that a Waypoint is identical to a PathUnit.Position, except for the crucial addition of travelMode
+	// A Waypoint is a network-based location (ie based on segment and position within the segment, rather than being
+	// a vector gridReference. A JourneyStep is the journey from one Waypoint to another (ie has a start and end Waypoint).
+	// A Waypoint is basically like a pathmanager PathUnit.Position, except for the rationalization of Offset
 
-    public class Waypoint
-    {
-        public ushort Segment { get; private set; }
-        public byte Offset { get; set; }
-        public byte Lane { get; }
-        public int TravelMode { get; set; }
+	public class Waypoint
+	{
+		public ushort Segment { get; private set; }
+		public byte Offset { get; set; }
+		public byte Lane { get; }
 
 
-        // for debugging
-        public void Dprint()
-        {
-            Debug.Log("\nsegment: " + Segment + ", offset: " + Offset + ", lane: " + Lane + ", travelMode: " + TravelMode);
-        }
+		//// for debugging
+		//public void Dprint()
+		//{
+		//	Debug.Log("\nsegment: " + Segment + ", offset: " + Offset + ", lane: " + Lane + ", travelMode: " + TravelMode);
+		//}
 
-        public Waypoint(PathUnit.Position pathPosition, int travelMode = -1)
-        {
-            Segment = pathPosition.m_segment;
-            Offset = pathPosition.m_offset;
-            Lane = pathPosition.m_lane;
-            TravelMode = travelMode;                         // -1 indicates not set (yet). TravelMode 0 indicates "unresolvable error" in setting, such as deficient segmentInfo
-        }
+		public Waypoint(PathUnit.Position pathPosition)
+		{
+			Segment = pathPosition.m_segment;
+			Lane = pathPosition.m_lane;
+			bool StartAt0 = Singleton<NetManager>.instance.m_segments.m_buffer[Segment].Info.m_lanes[Lane].m_position == 0;
+			Offset = pathPosition.m_offset;
+			if (Offset != 255 && Offset != 0)
+			{
+				if (StartAt0)
+				{
+					if (Offset > 128)
+						Offset = 255;
+					else
+						Offset = 128;
+				}
+				else
+				{
+					if (Offset < 128)
+						Offset = 0;
+					else
+						Offset = 128;
+				}
+			}
+		}
 
-        public Waypoint(ushort seg, byte lane, byte offset, int travelmode)
-        {
-            Segment = seg;
-            Offset = offset;
-            Lane = lane;
-            TravelMode = travelmode;
-        }
-
-        // rationalize is to "correct" for transport stops sometimes not being at exactly 128 for all lines. It only affects the position of transport stops.
-        public void Rationalize()
-        {
-            if (TravelMode > 31)
-                if (Offset != 0 && Offset != 255)
-                    Offset = 128;
-        }
-    }
+		public Waypoint(ushort seg, byte lane, byte offset)
+		{
+			Segment = seg;
+			Offset = offset;
+			Lane = lane;
+		}
+	}
 }

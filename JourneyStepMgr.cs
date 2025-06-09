@@ -40,9 +40,9 @@ namespace Journeys
         {
             lock (mgrLock)
             {
-                m_StepIndex = null;
-                m_HashToIdx = null;
-                m_indexStack = null;
+                m_StepIndex.Clear();
+                m_HashToIdx.Clear();
+                m_indexStack.Clear();
             }
         }
 
@@ -76,6 +76,8 @@ namespace Journeys
         }
 
 
+    // set up the primary steps (m_primarySteps) corresponding to primary selected segments, and likewise for the secondaries
+    // when called from secondary selection handler also sets up the secondary steps from scratch
         public void EnsureSelectedSteps(List<ushort> primarySegs, List<ushort> secondarySegs, HashSet<ushort> newSecondarySteps,
             bool resetPrimary = false, bool appendPrimary = false, bool resetSecondary = false, bool appendSecondary = false, bool setNewSteps = false)
         {
@@ -143,21 +145,6 @@ namespace Journeys
         }
 
 
-        public List<ushort> GetTargetSteps()
-        {
-            lock (mgrLock)
-            {
-                return m_primarySteps.ToList();
-            }
-        }
-        public List<ushort> GetTarget2Steps()
-        {
-            lock (mgrLock)
-            {
-                return m_secondarySteps.ToList();
-            }
-        }
-
         public JourneyStep GetStep(ushort idx)
         {
             lock (mgrLock)
@@ -174,8 +161,8 @@ namespace Journeys
             lock (mgrLock)
             {
                 List<ushort> outlist = new List<ushort>();
-                pointA.Rationalize();
-                pointB.Rationalize();
+                //pointA.Rationalize();
+                //pointB.Rationalize();
                 // rationalize PT offsets to 0, 128 and 255
                 // check (unless check switched off, which it is for recursive calls) if turn a corner
                 // break the route into 2 steps if so (reason is to have overall finer tuning of heats)
@@ -285,21 +272,12 @@ namespace Journeys
                     return;
                 }
                 Material material = (layerMask & 1 << xlayer) != 0 ? xmaterial : xmaterial2;
-                // for debug
-                int count = 0;
-                int notrejected = 0;
-                int uptofor = 0;
-                int precamera = 0;
-                int postcamera = 0;
-                int drawmesh = 0;
                 foreach (JourneyStep jStep in m_StepIndex.Values)
                 {
                     if (jStep == null)
                         Debug.LogError("JV Error: null jStep in m_StepIndex dictionary");
                     jStep.DrawTheMeshes(cameraInfo, material);
-                    count++;
                 }
-                //Debug.Log("JSM called DrawTheMeshes for " + count + " steps out of " + m_StepIndex.Count + ", JS notrejected: " + notrejected + " uptofor: " + uptofor + " precamera: " + precamera + " postcamera: " + postcamera + " drawmesh: " + drawmesh);
             }
         }
 
@@ -347,20 +325,16 @@ namespace Journeys
                         {
                             thisLane = jstep.EndStep.Lane;
                         }
-                        foreach (KeyValuePair<ushort, JourneyStep.CimStepInfo> pair in jstep.m_CimLines)
+                        foreach (KeyValuePair<ushort, int> pair in jstep.m_CimLines)
                         {
-                            ushort line = (ushort)pair.Value.m_travelMode;
-                            bool show = pair.Value.m_showCim;
+                            ushort line = (ushort)pair.Value;
                             ushort cim = pair.Key;
-                            if (show)
-                            {
                                 if (!m_dataset.ContainsKey(thisLane))
                                     m_dataset.Add(thisLane, new Dictionary<ushort, HashSet<ushort>>());
                                 if (!m_dataset[thisLane].ContainsKey(line))
                                     m_dataset[thisLane].Add(line, new HashSet<ushort> { cim });
                                 else
                                     m_dataset[thisLane][line].Add(cim);
-                            }
                         }
                     }
                 }
@@ -395,7 +369,7 @@ namespace Journeys
                             {
                                 m_laneIdx = 0;
                                 m_lineIdx = -1;
-                                return theJV.m_selectedCims;
+								return theJV.m_selectedCims;
                             }
                         }
                     }
