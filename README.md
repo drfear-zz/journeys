@@ -7,4 +7,4 @@ or for all citizens who will traverse a selected road or rail segment using any 
 passengers who will use a selected transport line.  You can also show the journeys for all 40,000 or so instantiated
 citizens in a single view.
 
-The Journeys mod is extremely useful for studying utilization of public transport.
+The Journeys mod is particularly useful for studying utilization of public transport.
