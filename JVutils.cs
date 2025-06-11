@@ -596,7 +596,7 @@ namespace Journeys
         public static List<Waypoint> PathToWaypoints(uint pathID)
         {
             if (pathID == 0)
-                return null;
+                return new List<Waypoint>();
             PathManager thePathManager = Singleton<PathManager>.instance;
             int loopCount = 0;
             List<Waypoint> outlist = new List<Waypoint>();
@@ -607,15 +607,15 @@ namespace Journeys
                 for (int positionIndex = 0; positionIndex < positionCount; ++positionIndex)
                 {
                     if (!thisUnit.GetPosition(positionIndex, out PathUnit.Position thisPathPosition))
-                        return null;  // this happens occaionally. EG if a path is captured half finished, or gets modified in the sim while this loop is calculating (extremely unlikely in JV, much more likely in PV)
+                        return new List<Waypoint>();  // this happens occaionally. EG if a path is captured half finished, or gets modified in the sim while this loop is calculating (extremely unlikely in JV, much more likely in PV)
                     outlist.Add(new Waypoint(thisPathPosition));
                 }
                 pathID = thisUnit.m_nextPathUnit;
                 if (++loopCount >= 262144)
                 {
                     Debug.LogError("JV Error: Invalid path (quasi-infinite loop in pathmanager pathunits) detected!\n" + System.Environment.StackTrace);
-                    return null;
-                }
+                    return new List<Waypoint>();
+				}
             }
             return outlist;
         }

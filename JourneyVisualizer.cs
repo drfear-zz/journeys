@@ -992,7 +992,7 @@ namespace Journeys
 
 						}
 						else
-						{
+						{	
 							foreach (Waypoint landpoint in segway.m_landroute)
 							{
 								if (!m_segways.TryGetValue(landpoint.Segment, out SegWay landsegway))
